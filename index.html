@@ -165,6 +165,20 @@
                 box-shadow: 0 8px 24px rgba(20,33,29,.035)
             }
 
+            .stat { position: relative; overflow: hidden }
+            .stat::before {
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                height: 4px;
+                background: linear-gradient(90deg, var(--brand), #a995ec)
+            }
+            .stat:nth-child(2)::before { background: linear-gradient(90deg, var(--field), #87b795) }
+            .stat:nth-child(3)::before { background: linear-gradient(90deg, #cf6a50, #f1b36f) }
+            .stat:nth-child(4)::before { background: linear-gradient(90deg, #5b4b9c, #8b73d6) }
+
             .stat {
                 text-align: left
             }
@@ -919,6 +933,34 @@
                     grid-template-columns:1fr 1fr
                 }
 
+                #page-today .grid4 {
+                    gap: 10px
+                }
+                #page-today .stat {
+                    min-height: 144px;
+                    padding: 17px 14px 14px;
+                    border-radius: 18px
+                }
+                #page-today .stat b {
+                    font-size: clamp(25px, 8vw, 32px);
+                    margin: 4px 0 7px;
+                    letter-spacing: -1px
+                }
+                #page-today .stat span { font-size: 13px; line-height: 1.25 }
+                #page-today .stat-link { margin-top: 10px; font-size: 12px }
+                #page-today .gross-stat { display: block }
+                #page-today .goal-ring { display: none }
+                #page-today .goal-caption {
+                    display: inline-block;
+                    margin-top: 5px;
+                    padding: 3px 7px;
+                    border-radius: 999px;
+                    background: #f0f6f1;
+                    color: var(--field);
+                    font-size: 11px;
+                    font-weight: 800
+                }
+
                 .grid3 {
                     grid-template-columns: 1fr
                 }
@@ -1112,7 +1154,7 @@
             <section id="page-today" class="page active">
                 <div class="hero">
                     <div>
-                        <h1>Today</h1>
+                        <h1>Win Today.</h1>
                         <p>One operating screen for the highest-value sales work.</p>
                     </div>
                     <div class="actions">
