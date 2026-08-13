@@ -1,0 +1,2288 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+        <meta name="theme-color" content="#101827">
+        <title>TractorCloser</title>
+        <style>
+            :root {
+                --bg: #f3f5f2;
+                --nav: #14211d;
+                --ink: #17201d;
+                --muted: #68756f;
+                --line: #dde3df;
+                --card: #fff;
+                --brand: #6242b8;
+                --brand2: #8568d4;
+                --ok: #287a4b;
+                --field: #4e8b63;
+                --danger: #b42318;
+                --soft: #eef1ee
+            }
+
+            * {
+                box-sizing: border-box
+            }
+
+            body {
+                margin: 0;
+                background-color: var(--bg);
+                background-image: radial-gradient(circle at 10% 12%, rgba(98,66,184,.055), transparent 25rem), radial-gradient(circle at 88% 72%, rgba(78,139,99,.07), transparent 28rem), linear-gradient(135deg, transparent 49.5%, rgba(78,139,99,.025) 50%, transparent 50.5%);
+                background-size: auto, auto, 32px 32px;
+                color: var(--ink);
+                font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+                padding-bottom: 82px
+            }
+
+            .top {
+                background: linear-gradient(115deg, #14211d, #243d32);
+                color: #fff;
+                padding: 28px 22px 22px;
+                position: sticky;
+                top: 0;
+                z-index: 30
+            }
+
+            .toprow {
+                max-width: 1100px;
+                margin: auto;
+                display: flex;
+                justify-content: space-between;
+                align-items: center
+            }
+
+            .brand {
+                font-size: 30px;
+                font-weight: 850;
+                letter-spacing: -.7px
+            }
+
+            .top .brand::first-letter { color: #a995ec }
+
+            .sub {
+                color: #c7ceda;
+                margin-top: 6px;
+                font-size: 16px
+            }
+
+            .avatar {
+                width: 52px;
+                height: 52px;
+                border: 0;
+                border-radius: 50%;
+                background: var(--brand2);
+                color: #fff;
+                display: grid;
+                place-items: center;
+                font-weight: 850
+            }
+
+            .mobile-drawer,.drawer-backdrop { display: none }
+
+            .wrap {
+                max-width: 1100px;
+                margin: 0 auto;
+                padding: 22px
+            }
+
+            .hero {
+                display: flex;
+                justify-content: space-between;
+                gap: 20px;
+                align-items: center
+            }
+
+            .hero h1 {
+                font-size: 42px;
+                margin: 12px 0 4px;
+                letter-spacing: -1.2px
+            }
+
+            .hero p {
+                font-size: 18px;
+                color: var(--muted);
+                margin: 0
+            }
+
+            .actions {
+                display: flex;
+                gap: 10px;
+                flex-wrap: wrap
+            }
+
+            .btn,.mini,.tabbtn {
+                border: 0;
+                border-radius: 14px;
+                padding: 13px 17px;
+                font-weight: 800;
+                font-size: 15px;
+                cursor: pointer
+            }
+
+            .btn.brand {
+                background: var(--brand);
+                color: #fff
+            }
+
+            .btn.light,.mini {
+                background: var(--soft);
+                color: var(--ink)
+            }
+
+            .mini {
+                padding: 9px 11px;
+                font-size: 13px
+            }
+
+            .btn.danger {
+                background: #fee4e2;
+                color: var(--danger)
+            }
+
+            .grid {
+                display: grid;
+                gap: 14px
+            }
+
+            .grid4 {
+                grid-template-columns: repeat(4,1fr)
+            }
+
+            .grid3 {
+                grid-template-columns: repeat(3,1fr)
+            }
+
+            .grid2 {
+                grid-template-columns: repeat(2,1fr)
+            }
+
+            .stat,.card {
+                background: var(--card);
+                border: 1px solid rgba(221,227,223,.9);
+                border-radius: 22px;
+                padding: 20px;
+                box-shadow: 0 8px 24px rgba(20,33,29,.035)
+            }
+
+            .stat {
+                text-align: left
+            }
+
+            .stat b {
+                display: block;
+                font-size: 34px;
+                margin-bottom: 5px
+            }
+
+            .stat span,.muted {
+                color: var(--muted)
+            }
+
+            .stat-link {
+                display: block;
+                margin-top: 9px;
+                padding: 0;
+                border: 0;
+                background: transparent;
+                color: #155eef;
+                font: inherit;
+                font-size: 13px;
+                font-weight: 800;
+                cursor: pointer
+            }
+
+            .stat-link:hover { text-decoration: underline }
+
+            .gross-stat {
+                display: flex;
+                flex-direction: row;
+                align-items: center;
+                justify-content: space-between;
+                gap: 14px
+            }
+
+            .gross-copy { min-width: 0; text-align: left }
+            .gross-copy b { white-space: nowrap }
+
+            .goal-ring {
+                --pct: 0;
+                --ring: #b42318;
+                position: relative;
+                flex: 0 0 auto;
+                width: 72px;
+                height: 72px;
+                display: grid;
+                place-items: center;
+                border-radius: 50%;
+                background: conic-gradient(var(--ring) calc(var(--pct) * 1%), #edf0f4 0)
+            }
+
+            .goal-ring::before {
+                content: '';
+                position: absolute;
+                inset: 7px;
+                border-radius: 50%;
+                background: var(--card)
+            }
+
+            .goal-ring span {
+                position: relative;
+                color: var(--ink);
+                font-weight: 850;
+                font-size: 13px
+            }
+
+            .goal-caption {
+                font-size: 12px;
+                line-height: 1.35;
+                color: var(--muted);
+                margin-top: 4px
+            }
+
+            .section {
+                margin-top: 22px
+            }
+
+            .section h2 {
+                font-size: 27px;
+                margin: 0 0 15px
+            }
+
+            .progress {
+                height: 10px;
+                background: #e9edf2;
+                border-radius: 999px;
+                overflow: hidden
+            }
+
+            .bar {
+                height: 100%;
+                background: var(--brand);
+                border-radius: 999px
+            }
+
+            .goalrow {
+                margin: 14px 0
+            }
+
+            .goalhead {
+                display: flex;
+                justify-content: space-between;
+                font-weight: 800;
+                margin-bottom: 7px
+            }
+
+            .list {
+                display: grid;
+                gap: 10px
+            }
+
+            .item {
+                background: #fff;
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                padding: 16px
+            }
+
+            button.item {
+                width: 100%;
+                color: var(--ink);
+                text-align: left;
+                font: inherit;
+                cursor: pointer
+            }
+
+            button.item:hover { border-color: #b7a4ec; background: #fbfaff }
+
+            .itemhead {
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                align-items: flex-start
+            }
+
+
+            .item h3 {
+                margin: 0 0 5px;
+                font-size: 18px
+            }
+
+            .meta {
+                color: var(--muted);
+                font-size: 14px;
+                line-height: 1.5
+            }
+
+            .pill {
+                display: inline-block;
+                padding: 6px 9px;
+                border-radius: 999px;
+                background: #f0eaff;
+                color: #4f24aa;
+                font-weight: 800;
+                font-size: 12px
+            }
+
+            .stagegrid {
+                display: grid;
+                grid-template-columns: repeat(4,1fr);
+                gap: 10px;
+                overflow: auto
+            }
+
+            .pipeline-mobile { display: none }
+            .stage-launcher {
+                min-height: 104px;
+                padding: 15px;
+                border: 1px solid var(--line);
+                border-radius: 18px;
+                background: #fff;
+                color: var(--ink);
+                text-align: left;
+                font: inherit;
+                cursor: pointer
+            }
+            .stage-launcher strong,.stage-launcher span { display: block }
+            .stage-launcher strong { font-size: 15px }
+            .stage-launcher span { margin-top: 7px; color: var(--brand); font-size: 13px; font-weight: 800 }
+
+            .crm-hub {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 14px
+            }
+            .crm-hub-card {
+                min-height: 154px;
+                padding: 20px;
+                border: 1px solid var(--line);
+                border-radius: 22px;
+                background: #fff;
+                color: var(--ink);
+                text-align: left;
+                font: inherit;
+                cursor: pointer
+            }
+            .crm-hub-card:hover { border-color: #b7a4ec; background: #fbfaff }
+            .crm-hub-card strong,.crm-hub-card span { display: block }
+            .crm-hub-card strong { font-size: 20px; margin-top: 14px }
+            .crm-hub-card span { color: var(--muted); margin-top: 6px }
+            .crm-hub-card em { display: block; color: var(--brand); font-size: 30px; font-style: normal }
+
+            .calculator-grid {
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) minmax(280px, .8fr);
+                gap: 14px
+            }
+            .calc-mode { display: flex; gap: 8px; margin: 0 0 16px }
+            .calc-mode .mini.active { background: var(--brand); color: #fff }
+            .four-square {
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                overflow: hidden;
+                border: 2px solid #98a7a0;
+                border-radius: 18px
+            }
+            .four-cell { min-height: 114px; padding: 16px; border-right: 2px solid #98a7a0; border-bottom: 2px solid #98a7a0 }
+            .four-cell:nth-child(2n) { border-right: 0 }
+            .four-cell:nth-last-child(-n+2) { border-bottom: 0 }
+            .four-cell span,.four-cell b { display: block }
+            .four-cell span { color: var(--muted); font-size: 13px; font-weight: 700 }
+            .four-cell b { margin-top: 10px; font-size: 24px }
+            .four-cell.highlight { background: #f4f0ff }
+            .quote-note { margin-top: 12px; color: var(--muted); font-size: 13px; line-height: 1.45 }
+            .payment-options { display: grid; gap: 9px; margin-top: 14px }
+            .payment-options[hidden] { display: none !important }
+            .payment-options h3 { margin: 2px 0; font-size: 15px }
+            .payment-option {
+                display: grid;
+                grid-template-columns: 1.25fr .8fr .8fr 1fr auto;
+                gap: 8px;
+                align-items: end;
+                padding: 11px;
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                background: #fbfcfb
+            }
+            .payment-option label { display: block; color: var(--muted); font-size: 11px; font-weight: 800 }
+            .payment-option input { width: 100%; margin-top: 4px; padding: 8px; border: 1px solid #d0d5dd; border-radius: 8px; font: inherit }
+            .payment-result { padding: 8px 4px; color: var(--brand); font-size: 17px; font-weight: 900; white-space: nowrap }
+            .payment-remove { align-self: end }
+            .proposal-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 16px }
+            .proposal-head h2 { margin: 0 }
+            .proposal-product { color: var(--muted); margin-top: 5px; font-size: 14px }
+            .proposal-options { display: grid; gap: 8px; margin-top: 14px }
+            .proposal-option { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 14px; border: 1px solid var(--line); border-radius: 14px; background: #fbfcfb }
+            .proposal-option strong,.proposal-option span { display: block }
+            .proposal-option span { color: var(--muted); font-size: 13px; margin-top: 3px }
+            .proposal-option b { color: var(--brand); font-size: 20px; white-space: nowrap }
+            .proposal-actions { display: flex; gap: 10px; margin-top: 14px }
+            @media print {
+                body { background: #fff !important; padding: 0 !important }
+                .top,.tabs,.utilitybar,.drawer-backdrop,.mobile-drawer,.calculator-grid > .card:first-child,.hero > .btn { display: none !important }
+                .wrap { max-width: none; padding: 0 }
+                .page { display: none !important }
+                #page-calculator { display: block !important }
+                #page-calculator .hero { display: none }
+                .calculator-grid { display: block !important; margin: 0 !important }
+                .calculator-grid > .card:last-child { box-shadow: none; border: 0; padding: 0 }
+                .proposal-actions { display: none !important }
+            }
+
+            .stage {
+                min-width: 220px;
+                background: #eef1f5;
+                border-radius: 18px;
+                padding: 12px
+            }
+
+            .stage h3 {
+                font-size: 14px;
+                margin: 2px 0 10px
+            }
+
+            .stage-title {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 6px
+            }
+
+            .stage-title h3 { margin: 2px 0 10px }
+            .stage-view {
+                border: 0;
+                background: transparent;
+                color: #155eef;
+                cursor: pointer;
+                font: inherit;
+                font-size: 12px;
+                font-weight: 800;
+                padding: 0 0 8px
+            }
+
+            .stage-view:hover { text-decoration: underline }
+
+            .stage-editor { display: grid; gap: 8px; margin: 10px 0 14px }
+            .stage-editor-row {
+                display: grid;
+                grid-template-columns: 1fr auto auto auto;
+                align-items: center;
+                gap: 8px;
+                padding: 8px;
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                background: #fff
+            }
+            .stage-editor-row input {
+                min-width: 0;
+                border: 1px solid #d0d5dd;
+                border-radius: 10px;
+                padding: 10px;
+                font: inherit
+            }
+            .stage-icon-btn {
+                width: 34px;
+                height: 34px;
+                border: 0;
+                border-radius: 9px;
+                background: var(--soft);
+                color: var(--ink);
+                font-weight: 850;
+                cursor: pointer
+            }
+            .stage-icon-btn.remove { background: #fee4e2; color: var(--danger) }
+
+            .leadcard {
+                background: #fff;
+                border-radius: 14px;
+                padding: 12px;
+                margin: 8px 0;
+                border: 1px solid var(--line);
+                cursor: pointer
+            }
+
+            .leadcard strong {
+                display: block
+            }
+
+            .formgrid {
+                display: grid;
+                grid-template-columns: repeat(2,1fr);
+                gap: 12px
+            }
+
+            .field label {
+                display: block;
+                font-size: 13px;
+                font-weight: 800;
+                margin: 0 0 5px
+            }
+
+            .field input,.field textarea,.field select {
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d0d5dd;
+                border-radius: 12px;
+                background: #fff;
+                font: inherit
+            }
+
+            .field textarea {
+                min-height: 100px;
+                resize: vertical
+            }
+
+            .switch-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 16px;
+                padding: 12px 0
+            }
+            .switch-copy strong,.switch-copy span { display: block }
+            .switch-copy span { margin-top: 3px; color: var(--muted); font-size: 13px }
+            .switch {
+                position: relative;
+                display: inline-flex;
+                width: 51px;
+                height: 31px;
+                flex: 0 0 auto
+            }
+            .switch input { opacity: 0; width: 0; height: 0 }
+            .switch-slider {
+                position: absolute;
+                inset: 0;
+                border-radius: 999px;
+                background: #98a2b3;
+                cursor: pointer;
+                transition: .2s
+            }
+            .switch-slider::before {
+                content: '';
+                position: absolute;
+                width: 25px;
+                height: 25px;
+                left: 3px;
+                top: 3px;
+                border-radius: 50%;
+                background: #fff;
+                box-shadow: 0 1px 3px rgba(16,24,39,.25);
+                transition: .2s
+            }
+            .switch input:checked + .switch-slider { background: #34c759 }
+            .switch input:checked + .switch-slider::before { transform: translateX(20px) }
+            .switch input:focus-visible + .switch-slider { outline: 3px solid rgba(52,199,89,.35); outline-offset: 2px }
+
+            .notification-list .pill {
+                min-width: 108px;
+                text-align: center
+            }
+
+            .full {
+                grid-column: 1/-1
+            }
+
+            .modal {
+                position: fixed;
+                inset: 0;
+                background: rgba(15,23,42,.58);
+                display: none;
+                align-items: flex-end;
+                justify-content: center;
+                z-index: 100
+            }
+
+            .modal.open {
+                display: flex
+            }
+
+            .modal.centered { align-items: center }
+            .modal.centered .sheet { border-radius: 24px; max-width: 520px }
+
+            .sheet {
+                background: #fff;
+                width: min(760px,100%);
+                max-height: 90vh;
+                overflow: auto;
+                border-radius: 24px 24px 0 0;
+                padding: 22px
+            }
+
+            .modalhead {
+                display: flex;
+                justify-content: space-between;
+                align-items: center
+            }
+
+            .toast {
+                position: fixed;
+                top: 92px;
+                right: 16px;
+                background: #111827;
+                color: #fff;
+                padding: 12px 15px;
+                border-radius: 12px;
+                z-index: 200;
+                display: none
+            }
+
+            .toast.show {
+                display: block
+            }
+
+            .tabs {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: #fff;
+                border-top: 1px solid var(--line);
+                display: flex;
+                justify-content: stretch;
+                z-index: 80;
+                overflow: hidden;
+                padding-bottom: env(safe-area-inset-bottom)
+            }
+
+            .mobile-tabs { display: none }
+
+            .tabbtn {
+                background: #fff;
+                color: var(--muted);
+                border-radius: 0;
+                padding: 11px 4px;
+                min-width: 0;
+                flex: 1 1 0;
+                width: 0;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis
+            }
+
+            .tabbtn.active {
+                color: var(--brand)
+            }
+
+            .app-icon {
+                display: inline-grid;
+                width: 22px;
+                height: 22px;
+                place-items: center;
+                margin-right: 6px;
+                border: 1.7px solid currentColor;
+                border-radius: 7px;
+                color: inherit;
+                font-size: 12px;
+                font-weight: 900;
+                line-height: 1
+            }
+
+            .app-icon.round { border-radius: 50% }
+            .app-icon.spark { border: 0; font-size: 20px }
+            .app-icon.home-mark {
+                width: 28px;
+                height: 28px;
+                margin-right: 4px;
+                border: 0;
+                font-size: 28px;
+                font-weight: 700
+            }
+            .app-icon.svg-mark {
+                width: 25px;
+                height: 25px;
+                border: 0;
+                border-radius: 0;
+                padding: 0
+            }
+            .app-icon.svg-mark svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round }
+
+            @media(min-width: 851px) {
+                body { padding-bottom: 0; padding-left: 232px }
+                .top { padding-left: 22px }
+                .toprow,.wrap { max-width: 1180px }
+                .desktop-tabs {
+                    position: fixed;
+                    top: 0;
+                    bottom: 0;
+                    left: 0;
+                    width: 208px;
+                    flex-direction: column;
+                    align-items: stretch;
+                    justify-content: flex-start;
+                    gap: 5px;
+                    padding: 88px 12px 22px;
+                    border-top: 0;
+                    border-right: 1px solid var(--line);
+                    box-shadow: 3px 0 14px rgba(16,24,39,.04)
+                }
+                .desktop-tabs::before {
+                    content: 'TRACTORCLOSER  /  SALES OS';
+                    position: absolute;
+                    top: 30px;
+                    left: 22px;
+                    color: #5c419f;
+                    font-size: 12px;
+                    font-weight: 900;
+                    letter-spacing: 1.2px
+                }
+                .desktop-tabs .tabbtn {
+                    display: flex;
+                    align-items: center;
+                    gap: 9px;
+                    flex: 0 0 auto;
+                    width: 100%;
+                    padding: 14px 15px;
+                    border-radius: 13px;
+                    text-align: left;
+                    font-size: 15px;
+                    font-weight: 800;
+                    white-space: normal
+                }
+                .desktop-tabs .app-icon { margin-right: 0 }
+                .desktop-tabs .tabbtn.active {
+                    color: var(--brand);
+                    background: linear-gradient(90deg, #efeaff, #f7f5ff);
+                    box-shadow: inset 3px 0 0 var(--brand)
+                }
+                .desktop-tabs .tabbtn:hover { background: #f7f5ff; color: var(--brand) }
+                .desktop-tabs .nav-spacer { flex: 1 }
+                .desktop-tabs .nav-utility { font-size: 14px; padding: 11px 15px }
+                .desktop-tabs .nav-icon {
+                    display: inline-grid;
+                    width: 24px;
+                    height: 24px;
+                    flex: 0 0 24px;
+                    place-items: center;
+                    margin-right: 0;
+                    font-size: 16px
+                }
+                .notification-badge {
+                    display: inline-grid;
+                    min-width: 20px;
+                    height: 20px;
+                    place-items: center;
+                    margin-left: 7px;
+                    border-radius: 999px;
+                    background: #fee4e2;
+                    color: var(--danger);
+                    font-size: 11px;
+                    font-weight: 900
+                }
+                .notification-chevron {
+                    margin-left: auto;
+                    font-size: 23px;
+                    font-weight: 900;
+                    line-height: .7;
+                }
+                .rail-notifications {
+                    display: grid;
+                    gap: 5px;
+                    padding: 2px 7px 6px 13px
+                }
+                .rail-notifications[hidden] { display: none }
+                .rail-notification {
+                    width: 100%;
+                    padding: 8px 9px;
+                    border-top: 0;
+                    border-right: 0;
+                    border-bottom: 0;
+                    border-left: 2px solid #c9b8ff;
+                    border-radius: 0 9px 9px 0;
+                    color: var(--muted);
+                    background: #f8faf8;
+                    font-size: 12px;
+                    line-height: 1.35;
+                    text-align: left;
+                    font: inherit;
+                    cursor: pointer
+                }
+                .rail-notification:hover { background: #f0f6f1; border-left-color: var(--field) }
+                .rail-notification strong { display: block; color: var(--ink); font-size: 12px }
+                .desktop-tabs .nav-logout { color: var(--danger) }
+                .desktop-tabs .nav-logout:hover { background: #fff1f0; color: var(--danger) }
+            }
+
+            .page {
+                display: none
+            }
+
+            .page.active {
+                display: block
+            }
+
+            .empty {
+                text-align: center;
+                padding: 28px;
+                color: var(--muted)
+            }
+
+            .manager {
+                background: linear-gradient(135deg,#30245d,#6242b8);
+                color: #fff;
+                border-radius: 24px;
+                padding: 22px
+            }
+
+            .manager .muted {
+                color: #d7d0ee
+            }
+
+            .ai-grid {
+                display: grid;
+                grid-template-columns: 1.2fr .8fr;
+                gap: 14px
+            }
+
+            .score {
+                font-weight: 850;
+                color: var(--brand)
+            }
+
+            .utilitybar {
+                max-width: 1100px;
+                margin: 16px auto 0;
+                padding: 0 22px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 14px
+            }
+
+            .search {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                flex: 1;
+                max-width: 460px;
+                background: #fff;
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                padding: 0 12px
+            }
+
+            .search input {
+                width: 100%;
+                border: 0;
+                outline: 0;
+                padding: 12px 0;
+                font: inherit
+                color: var(--ink)
+            }
+
+            .demo-note {
+                background: #fff7df;
+                border: 1px solid #f7d483;
+                border-radius: 12px;
+                color: #7a4b00;
+                font-size: 13px;
+                font-weight: 700;
+                padding: 9px 11px
+            }
+
+            .search-results {
+                display: none;
+                position: relative;
+                max-width: 1100px;
+                margin: 10px auto 0;
+                background: #fff;
+                border: 1px solid var(--line);
+                box-shadow: 0 16px 36px rgba(16,24,39,.14);
+                border-radius: 18px;
+                overflow: hidden;
+                z-index: 25
+            }
+
+            .search-results.show { display: block }
+            .search-results h2 { font-size: 15px; margin: 0; padding: 14px 16px 8px }
+            .search-result {
+                width: 100%;
+                padding: 13px 16px;
+                text-align: left;
+                border: 0;
+                border-top: 1px solid var(--line);
+                background: #fff;
+                color: var(--ink);
+                cursor: pointer;
+                font: inherit
+            }
+            .search-result:hover,.search-result:focus-visible { background: #f7f5ff; outline: 0 }
+            .search-result strong,.search-result span { display: block }
+            .search-result span { color: var(--muted); font-size: 13px; margin-top: 3px }
+
+            .leadcard:focus-visible,.btn:focus-visible,.mini:focus-visible,.tabbtn:focus-visible,.search:focus-within {
+                outline: 3px solid rgba(124,77,255,.35);
+                outline-offset: 2px
+            }
+
+            @media(max-width: 850px) {
+                .grid4 {
+                    grid-template-columns:1fr 1fr
+                }
+
+                .grid3 {
+                    grid-template-columns: 1fr
+                }
+
+                .grid2,.formgrid {
+                    grid-template-columns: 1fr
+                }
+
+                .hero {
+                    align-items: flex-start;
+                    flex-direction: column
+                }
+
+                .hero h1 {
+                    font-size: 34px
+                }
+
+                .ai-grid {
+                    grid-template-columns: 1fr
+                }
+
+                .priority-action { min-height: 0 }
+                .priority-action .itemhead {
+                    min-height: 0;
+                    flex-direction: column
+                }
+                .priority-action .actions {
+                    width: 100%;
+                    flex-basis: auto;
+                    display: grid;
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                    gap: 8px;
+                    margin-top: 4px
+                }
+                .priority-action .mini {
+                    width: 100%;
+                    text-align: center;
+                    white-space: nowrap
+                }
+
+                .stagegrid {
+                    grid-template-columns: repeat(8,220px);
+                    overflow-x: auto
+                }
+
+                .pipeline-desktop { display: none }
+                .pipeline-mobile {
+                    display: grid;
+                    grid-template-columns: repeat(2, minmax(0, 1fr));
+                    gap: 10px
+                }
+                .crm-hub { gap: 10px }
+                .crm-hub-card { min-height: 128px; padding: 14px }
+                .crm-hub-card strong { font-size: 16px; margin-top: 10px }
+                .crm-hub-card span { font-size: 13px }
+                .calculator-grid { grid-template-columns: 1fr }
+                .payment-option { grid-template-columns: repeat(3, minmax(0, 1fr)) }
+                .payment-result { grid-column: 1 / -1; padding: 3px 0 0; text-align: center }
+                .payment-remove { grid-column: 1 / -1; justify-self: end }
+                #page-pipeline .hero { margin-bottom: 0 }
+                #page-pipeline .hero p { display: none }
+                #page-pipeline .section { margin-top: 14px }
+                .stage-launcher {
+                    min-height: 72px;
+                    padding: 12px
+                }
+                .stage-launcher strong { font-size: 16px }
+                .stage-launcher span { margin-top: 4px; font-size: 13px }
+
+                .tabbtn {
+                    min-width: 0;
+                    font-size: 10px;
+                    padding: 10px 2px
+                }
+
+                .desktop-tabs { display: none }
+                .mobile-tabs { display: flex }
+                .mobile-tabs .tabbtn {
+                    display: flex;
+                    min-height: 62px;
+                    flex-direction: column;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 3px;
+                    font-size: 12px;
+                    white-space: normal
+                }
+                .mobile-tabs .app-icon {
+                    width: 20px;
+                    height: 20px;
+                    margin: 0;
+                    font-size: 11px
+                }
+                .mobile-tabs .app-icon.home-mark { width: 25px; height: 25px; font-size: 25px }
+                .mobile-tabs .app-icon.svg-mark { width: 22px; height: 22px }
+
+                .wrap {
+                    padding: 16px
+                }
+
+                .utilitybar {
+                    margin-top: 12px;
+                    padding: 0 16px;
+                    align-items: stretch;
+                    flex-direction: column
+                }
+
+                .brand {
+                    font-size: 25px
+                }
+
+                .avatar { cursor: pointer }
+                .drawer-backdrop.open {
+                    display: block;
+                    position: fixed;
+                    inset: 0;
+                    z-index: 109;
+                    background: rgba(15,23,42,.38)
+                }
+                .mobile-drawer {
+                    position: fixed;
+                    z-index: 110;
+                    top: 0;
+                    right: 0;
+                    bottom: 0;
+                    width: min(330px, 88vw);
+                    padding: calc(22px + env(safe-area-inset-top)) 18px 24px;
+                    background: #fff;
+                    box-shadow: -14px 0 34px rgba(16,24,39,.2);
+                    transform: translateX(104%);
+                    transition: transform .22s ease
+                }
+                .mobile-drawer.open { display: block; transform: translateX(0) }
+                .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 24px }
+                .drawer-head h2 { margin: 0; font-size: 22px }
+                .drawer-actions { display: grid; gap: 8px }
+                .drawer-action {
+                    width: 100%;
+                    padding: 15px;
+                    border: 1px solid var(--line);
+                    border-radius: 14px;
+                    background: #fff;
+                    color: var(--ink);
+                    text-align: left;
+                    font: inherit;
+                    font-weight: 800;
+                    cursor: pointer
+                }
+                .drawer-action .notification-badge {
+                    display: inline-grid;
+                    min-width: 20px;
+                    height: 20px;
+                    place-items: center;
+                    margin-left: 5px;
+                    border-radius: 999px;
+                    background: #fee4e2;
+                    color: var(--danger);
+                    font-size: 11px
+                }
+                .drawer-action.danger { color: var(--danger); background: #fff7f6 }
+            }
+        </style>
+    </head>
+    <body>
+        <div id="toast" class="toast"></div>
+        <header class="top">
+            <div class="toprow">
+                <div>
+                    <div class="brand"><span class="app-icon round" style="vertical-align:2px">T</span>TractorCloser</div>
+                    <div class="sub" id="greeting">Win the next deal.</div>
+                </div>
+                <button class="avatar" id="avatar" onclick="openMobileDrawer()" aria-label="Open account menu">TC</button>
+            </div>
+        </header>
+        <div id="drawerBackdrop" class="drawer-backdrop" onclick="closeMobileDrawer()"></div>
+        <aside id="mobileDrawer" class="mobile-drawer" aria-label="Account menu">
+            <div class="drawer-head"><div><h2 id="drawerName">Account</h2><div class="muted">Sales workspace</div></div><button class="mini" onclick="closeMobileDrawer()">Close</button></div>
+            <div class="drawer-actions">
+                <button class="drawer-action" onclick="closeMobileDrawer();openAccount()">👤 Account</button>
+                <button class="drawer-action" onclick="closeMobileDrawer();openNotifications()">🔔 Notifications <span class="notification-badge">3</span></button>
+                <button class="drawer-action" onclick="closeMobileDrawer();openHelp()">? Help</button>
+                <button class="drawer-action danger" onclick="closeMobileDrawer();logout()">↪ Log out</button>
+            </div>
+        </aside>
+        <main class="wrap">
+            <div class="utilitybar" aria-label="Workspace tools">
+                <div class="search">⌕ <input id="globalSearch" type="search" placeholder="Search customers, equipment, or phone…" oninput="applySearch()" aria-label="Search CRM"></div>
+                <div id="demoNote" class="demo-note" hidden>Preview data — connect your API when ready.</div>
+            </div>
+            <section id="searchResults" class="search-results" aria-live="polite"></section>
+            <section id="page-today" class="page active">
+                <div class="hero">
+                    <div>
+                        <h1>Today</h1>
+                        <p>One operating screen for the highest-value sales work.</p>
+                    </div>
+                    <div class="actions">
+                        <button class="btn light" onclick="openGoals()">Set goals</button>
+                    </div>
+                </div>
+                <div class="grid grid4 section">
+                    <div class="stat">
+                        <b id="tActive">0</b>
+                        <span>Active leads</span>
+                        <button class="stat-link" onclick="go('crm')">Go to leads →</button>
+                    </div>
+                    <div class="stat">
+                        <b id="tUnits">0</b>
+                        <span>Available units</span>
+                        <button class="stat-link" onclick="go('inventory')">Go to inventory →</button>
+                    </div>
+                    <div class="stat">
+                        <b id="tOverdue">0</b>
+                        <span>Overdue follow-ups</span>
+                        <button class="stat-link" onclick="go('pipeline')">Go to pipeline →</button>
+                    </div>
+                    <div class="stat gross-stat" id="tGrossCard">
+                        <b id="tGross">$0</b>
+                        <span>Gross this month</span>
+                        <button class="stat-link" onclick="go('deals')">Go to deals →</button>
+                    </div>
+                </div>
+                <div class="grid grid2 section">
+                    <div class="card">
+                        <h2>🎯 Your Month</h2>
+                        <div id="todayGoals"></div>
+                    </div>
+                    <div class="manager">
+                        <h2 style="margin-top:0">🤖 AI Sales Manager</h2>
+                        <p class="muted">Let the manager rank the work, identify risk and tell you what to do next.</p>
+                        <button class="btn" style="background:#fff;color:#3b1c82" onclick="go('ai');runManager()">Run manager</button>
+                    </div>
+                </div>
+                <div class="section card">
+                    <h2>🔥 Highest-value actions</h2>
+                    <div id="todayActions" class="list"></div>
+                </div>
+            </section>
+            <section id="page-win" class="page">
+                <div class="hero">
+                    <div>
+                        <h1>To-Do List</h1>
+                        <p>Concrete next commitments. No busywork.</p>
+                    </div>
+                    <button class="btn brand" onclick="loadAll()">↻ Refresh</button>
+                </div>
+                <div class="grid grid4 section">
+                    <div class="stat">
+                        <b id="wActive">0</b>
+                        <span>Active leads</span>
+                    </div>
+                    <div class="stat">
+                        <b id="wOverdue">0</b>
+                        <span>Overdue</span>
+                    </div>
+                    <div class="stat">
+                        <b id="wAppt">0</b>
+                        <span>Appointments today</span>
+                    </div>
+                    <div class="stat">
+                        <b id="wGross">$0</b>
+                        <span>Gross this month</span>
+                    </div>
+                </div>
+                <div class="section card">
+                    <h2>⚡ Do This Now</h2>
+                    <div id="winActions" class="list"></div>
+                </div>
+                <div class="section card">
+                    <h2>Quick Wins</h2>
+                    <div id="quickWins" class="actions"></div>
+                </div>
+            </section>
+            <section id="page-pipeline" class="page">
+                <div class="hero">
+                    <div>
+                        <h1>Pipeline</h1>
+                        <p>Move every opportunity toward a commitment.</p>
+                    </div>
+                    <div class="actions"><button class="btn light" onclick="openPipelineSettings()">⚙ Settings</button><button class="btn brand" onclick="openLead()">+ Add lead</button></div>
+                </div>
+                <div class="section stagegrid pipeline-desktop" id="pipeline"></div>
+                <div class="section pipeline-mobile" id="pipelineMobile"></div>
+            </section>
+            <section id="page-pipeline-stage" class="page">
+                <div class="hero">
+                    <div>
+                        <h1 id="stageTitle">Pipeline</h1>
+                        <p id="stageSubtitle">Leads in this stage.</p>
+                    </div>
+                    <button class="btn light" onclick="go('pipeline')">← Back to Work</button>
+                </div>
+                <div class="section card"><div id="stageLeads" class="list"></div></div>
+            </section>
+            <section id="page-crm" class="page">
+                <div class="hero">
+                    <div>
+                        <h1>CRM</h1>
+                        <p>Choose the customer work you need.</p>
+                    </div>
+                    <button class="btn brand" onclick="openLead()">+ Add customer</button>
+                </div>
+                <div id="crmHub" class="crm-hub section"></div>
+                <div hidden aria-hidden="true"><div id="crmLeads"></div><div id="crmFollowups"></div><div id="crmAppointments"></div><div id="crmQuotes"></div></div>
+            </section>
+            <section id="page-crm-view" class="page">
+                <div class="hero">
+                    <div><h1 id="crmViewTitle">CRM</h1><p id="crmViewSubtitle">Customer workspace.</p></div>
+                    <div class="actions"><button id="crmViewAdd" class="btn brand"></button><button class="btn light" onclick="go('crm')">← CRM home</button></div>
+                </div>
+                <div class="section card"><div id="crmViewContent" class="list"></div></div>
+            </section>
+            <section id="page-inventory" class="page">
+                <div class="hero">
+                    <div>
+                        <h1>🚜 Inventory</h1>
+                        <p>Know what is available, sold and ready to match.</p>
+                    </div>
+                    <button class="btn brand" onclick="openInventory()">+ Add equipment</button>
+                </div>
+                <div class="section card">
+                    <div id="inventory" class="list"></div>
+                </div>
+            </section>
+            <section id="page-ai" class="page">
+                <div class="hero">
+                    <div>
+                        <h1>🤖 AI Sales Manager</h1>
+                        <p>Manager, coach, objection handler and next-move engine.</p>
+                    </div>
+                    <button class="btn brand" onclick="runManager()">Run manager</button>
+                </div>
+                <div class="ai-grid section">
+                    <div class="manager">
+                        <h2>Manager Brief</h2>
+                        <div id="managerResult">
+                            <p class="muted">Run the manager after loading your current CRM context.</p>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <h2>🧠 Closing Coach</h2>
+                        <div class="field">
+                            <label>Situation / objection</label>
+                            <textarea id="coachText" placeholder="Customer says the price is too high..."></textarea>
+                        </div>
+                        <button class="btn brand" onclick="coachFree()">Coach me</button>
+                    </div>
+                </div>
+                <div class="section card">
+                    <h2>🎯 Priority queue</h2>
+                    <div id="aiQueue" class="list"></div>
+                </div>
+            </section>
+            <section id="page-deals" class="page">
+                <div class="hero">
+                    <div>
+                        <h1>💰 Deals</h1>
+                        <p>Closed business, gross profit and scoreboard.</p>
+                    </div>
+                    <button class="btn brand" onclick="openDeal()">+ Record deal</button>
+                </div>
+                <div class="grid grid3 section">
+                    <div class="stat">
+                        <b id="dSold">0</b>
+                        <span>Deals sold</span>
+                    </div>
+                    <div class="stat">
+                        <b id="dGross">$0</b>
+                        <span>Total gross</span>
+                    </div>
+                    <div class="stat">
+                        <b id="dVolume">$0</b>
+                        <span>Sales volume</span>
+                    </div>
+                </div>
+                <div class="section card">
+                    <div id="deals" class="list"></div>
+                </div>
+            </section>
+            <section id="page-calculator" class="page">
+                <div class="hero"><div><h1>Quote & Payment Calculator</h1><p>Build clear cash or finance scenarios before creating a quote.</p></div><button class="btn brand" onclick="startQuoteForLead(null)">+ Create quote</button></div>
+                <div class="calculator-grid section">
+                    <div class="card">
+                        <div class="calc-mode"><button id="financeMode" class="mini active" onclick="setCalcMode('finance')">Finance deal</button><button id="cashMode" class="mini" onclick="setCalcMode('cash')">Cash deal</button></div>
+                        <div class="formgrid"><div class="field full"><label>Customer name</label><input id="calcCustomer" placeholder="Customer name" oninput="calculatePayment()"></div><div class="field full"><label>Equipment / package</label><input id="calcEquipment" placeholder="2025 Yanmar YM347 with loader" oninput="calculatePayment()"></div><div class="field"><label>Selling price</label><input id="calcPrice" type="number" value="39500" oninput="calculatePayment()"></div><div class="field"><label>Trade-in allowance</label><input id="calcTrade" type="number" value="0" oninput="calculatePayment()"></div><div id="downField" class="field"><label>Down payment</label><input id="calcDown" type="number" value="5000" oninput="calculatePayment()"></div><div class="field"><label>Estimated tax rate</label><input id="calcTax" type="number" value="7" step=".1" oninput="calculatePayment()"></div><div id="financeFields" class="field"><label>APR %</label><input id="calcApr" type="number" value="6.99" step=".01" oninput="calculatePayment()"></div><div id="termField" class="field"><label>Term (months)</label><select id="calcTerm" onchange="calculatePayment()"><option value="36">36 months</option><option value="48">48 months</option><option value="60" selected>60 months</option><option value="72">72 months</option></select></div></div><div id="paymentOptionsEditor" class="payment-options"><h3>Customer payment options</h3><div id="calcPaymentOptions"></div><button class="mini" onclick="addPaymentOption()">+ Add payment option</button></div>
+                    </div>
+                    <div id="customerProposal" class="card"><div class="proposal-head"><div><h2>Customer proposal</h2><div id="proposalCustomer" class="proposal-product">Prepared for your customer</div><div id="proposalEquipment" class="proposal-product">Equipment details</div></div></div><div id="fourSquare" class="four-square"></div><div id="proposalOptions" class="proposal-options"></div><p id="calcNote" class="quote-note"></p><div class="proposal-actions"><button class="mini" onclick="window.print()">Print</button><button class="btn brand" onclick="applyCalculatorToQuote()">Use in new quote</button></div></div>
+                </div>
+            </section>
+        </main>
+        <nav class="tabs desktop-tabs" aria-label="Primary navigation">
+            <button class="tabbtn active" data-page="today" onclick="go('today')"><span class="app-icon home-mark">⌂</span>Today</button>
+            <button class="tabbtn" data-page="win" onclick="go('win')"><span class="app-icon">✓</span>To-Do</button>
+            <button class="tabbtn" data-page="pipeline" onclick="go('pipeline')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor" opacity=".58"/><circle cx="19" cy="12" r="2" fill="currentColor" opacity=".3"/></svg></span>Pipeline</button>
+            <button class="tabbtn" data-page="crm" onclick="go('crm')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span>CRM</button>
+            <button class="tabbtn" data-page="inventory" onclick="go('inventory')"><span class="app-icon">▦</span>Inventory</button>
+            <button class="tabbtn" data-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span>AI</button>
+            <button class="tabbtn" data-page="deals" onclick="go('deals')"><span class="app-icon">$</span>Deals</button>
+            <button class="tabbtn" data-page="calculator" onclick="go('calculator')"><span class="app-icon">#</span>Calculator</button>
+            <button class="tabbtn nav-utility" onclick="toggleRailNotifications()"><span class="nav-icon app-icon round">!</span>Notifications<span class="notification-badge">3</span><span id="notificationChevron" class="notification-chevron">›</span></button>
+            <div id="railNotifications" class="rail-notifications">
+                <button class="rail-notification" onclick="openNotificationTarget(1)"><strong>Follow-up overdue</strong>Jordan Miller</button>
+                <button class="rail-notification" onclick="openNotificationTarget(2)"><strong>Demo tomorrow</strong>Casey Rodriguez</button>
+                <button class="rail-notification" onclick="openNotificationTarget(3)"><strong>Quote viewed</strong>Morgan Lee</button>
+            </div>
+            <div class="nav-spacer" aria-hidden="true"></div>
+            <button class="tabbtn nav-utility" onclick="openAccount()"><span class="nav-icon app-icon svg-mark round"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span>Account</button>
+            <button class="tabbtn nav-utility" onclick="openHelp()"><span class="nav-icon app-icon round">?</span>Help</button>
+            <button class="tabbtn nav-utility nav-logout" onclick="logout()"><span class="nav-icon app-icon">↪</span>Log out</button>
+        </nav>
+        <nav class="tabs mobile-tabs" aria-label="Mobile navigation">
+            <button class="tabbtn active" data-mobile-page="today" onclick="go('today')"><span class="app-icon home-mark">⌂</span><span>Today</span></button>
+            <button class="tabbtn" data-mobile-page="work" onclick="go('pipeline')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor" opacity=".58"/><circle cx="19" cy="12" r="2" fill="currentColor" opacity=".3"/></svg></span><span>Pipeline</span></button>
+            <button class="tabbtn" data-mobile-page="crm" onclick="go('crm')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span><span>CRM</span></button>
+            <button class="tabbtn" data-mobile-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span><span>AI</span></button>
+            <button class="tabbtn" data-mobile-page="more" onclick="openMobileMenu('more')"><span class="app-icon">••</span><span>More</span></button>
+        </nav>
+        <div class="modal" id="modal">
+            <div class="sheet">
+                <div class="modalhead">
+                    <h2 id="modalTitle">TractorCloser</h2>
+                    <button class="mini" onclick="closeModal()">Close</button>
+                </div>
+                <div id="modalBody"></div>
+            </div>
+        </div>
+        <script>
+            let token = localStorage.getItem('tractorcloser_token');
+            let demoMode = false;
+            let calculatorMode = 'finance';
+            let paymentOptions = [{label: '60 months', apr: 6.99, down: 5000}, {label: '72 months', apr: 7.49, down: 7500}];
+            let quoteLeadId = null;
+            let state = {
+                plan: null,
+                leads: [],
+                inventory: [],
+                followups: [],
+                appointments: [],
+                quotes: [],
+                deals: [],
+                metrics: null
+            };
+            let stages = JSON.parse(localStorage.getItem('tractorcloser_pipeline_stages') || 'null') || ['New', 'Contacted', 'Appointment', 'Demo', 'Quote', 'Negotiating', 'Sold', 'Lost'];
+            let followupReminderHours = Number(localStorage.getItem('tractorcloser_followup_reminder_hours') || 48);
+            const $ = id => document.getElementById(id);
+            function esc(v) {
+                return String(v ?? '').replace(/[&<>'"]/g, c => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[c]))
+            }
+            function money(n) {
+                return new Intl.NumberFormat('en-US',{
+                    style: 'currency',
+                    currency: 'USD',
+                    maximumFractionDigits: 0
+                }).format(Number(n || 0))
+            }
+            function setCalcMode(mode) {
+                calculatorMode = mode;
+                $('financeMode').classList.toggle('active', mode === 'finance');
+                $('cashMode').classList.toggle('active', mode === 'cash');
+                $('financeFields').hidden = mode === 'cash';
+                $('termField').hidden = mode === 'cash';
+                $('downField').hidden = mode === 'cash';
+                $('paymentOptionsEditor').hidden = mode === 'cash';
+                calculatePayment();
+            }
+            function renderPaymentOptions() {
+                if (!$('calcPaymentOptions')) return;
+                $('calcPaymentOptions').innerHTML = paymentOptions.map((option, index) => `<div class="payment-option"><label>Option<input value="${esc(option.label)}" oninput="updatePaymentOption(${index},'label',this.value)"></label><label>APR %<input type="number" value="${option.apr}" step=".01" oninput="updatePaymentOption(${index},'apr',this.value)"></label><label>Down payment<input type="number" value="${option.down}" oninput="updatePaymentOption(${index},'down',this.value)"></label><div id="optionPayment${index}" class="payment-result">$0/mo</div><button class="mini payment-remove" onclick="removePaymentOption(${index})" ${paymentOptions.length === 1 ? 'disabled' : ''}>Remove</button></div>`).join('')
+            }
+            function updatePaymentOption(index, key, value) {
+                paymentOptions[index][key] = key === 'label' ? value : Number(value || 0);
+                calculatePayment()
+            }
+            function addPaymentOption() {
+                paymentOptions.push({label: 'Custom option', apr: Number($('calcApr')?.value || 6.99), down: Number($('calcDown')?.value || 0)});
+                renderPaymentOptions();
+                calculatePayment()
+            }
+            function removePaymentOption(index) {
+                if (paymentOptions.length === 1) return toast('Keep at least one payment option');
+                paymentOptions.splice(index, 1);
+                renderPaymentOptions();
+                calculatePayment()
+            }
+            function calculatePayment() {
+                if (!$('calcPrice')) return;
+                const price = Number($('calcPrice').value || 0);
+                const trade = Number($('calcTrade').value || 0);
+                const down = Number($('calcDown').value || 0);
+                const taxRate = Number($('calcTax').value || 0) / 100;
+                const taxable = Math.max(0, price - trade);
+                const tax = taxable * taxRate;
+                const total = taxable + tax;
+                const financed = Math.max(0, total - down);
+                const months = Number($('calcTerm').value || 60);
+                const apr = Number($('calcApr').value || 0) / 100;
+                const rate = apr / 12;
+                const payment = calculatorMode === 'finance' && financed ? (rate ? financed * rate / (1 - Math.pow(1 + rate, -months)) : financed / months) : 0;
+                const cashDue = total;
+                $('fourSquare').innerHTML = calculatorMode === 'finance' ? `<div class="four-cell"><span>Sale price</span><b>${money(price)}</b></div><div class="four-cell"><span>Trade allowance</span><b>−${money(trade)}</b></div><div class="four-cell"><span>Down payment</span><b>−${money(down)}</b></div><div class="four-cell highlight"><span>Est. monthly payment</span><b>${money(payment)}</b></div>` : `<div class="four-cell"><span>Sale price</span><b>${money(price)}</b></div><div class="four-cell"><span>Trade allowance</span><b>−${money(trade)}</b></div><div class="four-cell"><span>Estimated sales tax</span><b>${money(tax)}</b></div><div class="four-cell highlight"><span>Cash due at sale</span><b>${money(cashDue)}</b></div>`;
+                $('proposalCustomer').textContent = $('calcCustomer').value.trim() || 'Prepared for your customer';
+                $('proposalEquipment').textContent = $('calcEquipment').value.trim() || 'Equipment details to be confirmed';
+                $('proposalOptions').innerHTML = calculatorMode === 'finance' ? paymentOptions.map((option, index) => {
+                    const optionApr = Number(option.apr || 0) / 100;
+                    const optionDown = Number(option.down || 0);
+                    const optionFinanced = Math.max(0, total - optionDown);
+                    const optionMonths = Number((String(option.label).match(/\d+/) || [months])[0]);
+                    const optionRate = optionApr / 12;
+                    const optionPayment = optionFinanced ? (optionRate ? optionFinanced * optionRate / (1 - Math.pow(1 + optionRate, -optionMonths)) : optionFinanced / optionMonths) : 0;
+                    const output = $('optionPayment' + index);
+                    if (output) output.textContent = calculatorMode === 'finance' ? `${money(optionPayment)}/mo` : money(optionFinanced);
+                    return `<div class="proposal-option"><div><strong>${esc(option.label || 'Payment option')}</strong><span>${Number(option.apr || 0).toFixed(2)}% APR · ${money(optionDown)} down</span></div><b>${calculatorMode === 'finance' ? money(optionPayment) + '/mo' : money(optionFinanced)}</b></div>`
+                }).join('') : '';
+                $('proposalOptions').hidden = calculatorMode === 'cash';
+                $('calcNote').textContent = calculatorMode === 'finance' ? `Primary estimate: ${money(financed)} financed for ${months} months at ${Number($('calcApr').value || 0).toFixed(2)}% APR. Payment options can be customized for a customer conversation; all figures are estimates.` : `${money(cashDue)} estimated cash due at sale. Taxes and fees may vary.`;
+            }
+            function applyCalculatorToQuote() {
+                const price = $('calcPrice').value;
+                const equipment = $('calcEquipment').value;
+                const lead = state.leads.find(x => String(x.id) === String(quoteLeadId));
+                const quote = {id: Date.now(), lead_id: quoteLeadId, customer: $('calcCustomer').value.trim() || lead?.name || 'Customer', equipment, amount: Number(price || 0), status: 'Draft', notes: $('calcNote').textContent, type: calculatorMode, options: paymentOptions.map(x => ({...x}))};
+                if (demoMode) {
+                    state.quotes.unshift(quote);
+                    renderCRM();
+                    toast('Quote saved to customer profile');
+                    openSavedQuote(quote.id);
+                    return
+                }
+                go('crm'); openQuoteForm();
+            }
+            function startQuoteForLead(leadId) {
+                if (!leadId) return chooseQuoteCustomer();
+                quoteLeadId = leadId || null;
+                const lead = state.leads.find(x => String(x.id) === String(quoteLeadId));
+                go('calculator');
+                $('calcCustomer').value = lead?.name || '';
+                $('calcEquipment').value = lead?.equipment || '';
+                if (lead?.budget) $('calcPrice').value = lead.budget;
+                calculatePayment();
+            }
+            function chooseQuoteCustomer() {
+                openModal('Create quote', `<p class="muted">Choose who this quote is for.</p><div class="actions"><button class="btn brand" onclick="openNewQuoteCustomer()">+ New customer</button><button class="btn light" onclick="showQuoteCustomerList()">Select customer</button></div>`, true)
+            }
+            function showQuoteCustomerList() {
+                const activeLeads = state.leads.filter(l => !['Sold', 'Lost'].includes(l.pipeline_stage || l.status));
+                openModal('Select customer', `<div class="list">${activeLeads.map(l => `<button class="item" onclick="closeModal();startQuoteForLead(${l.id})"><h3>${esc(l.name)}</h3><div class="meta">${esc(l.equipment || 'Equipment not specified')} · ${esc(l.pipeline_stage || 'New')}</div></button>`).join('') || '<div class="empty">No active customers yet.</div>'}</div>`)
+            }
+            function openNewQuoteCustomer() {
+                openModal('New customer', `<div class="formgrid"><div class="field"><label>Name</label><input id="quoteNewName"></div><div class="field"><label>Phone</label><input id="quoteNewPhone"></div><div class="field"><label>Email</label><input id="quoteNewEmail" type="email"></div><div class="field"><label>Equipment</label><input id="quoteNewEquipment" placeholder="Equipment of interest"></div><div class="field"><label>Budget</label><input id="quoteNewBudget" type="number"></div></div><button class="btn brand" onclick="saveNewQuoteCustomer()">Continue to quote</button>`)
+            }
+            function saveNewQuoteCustomer() {
+                const name = $('quoteNewName').value.trim();
+                if (!name) return toast('Customer name is required');
+                const lead = {id: Date.now(), name, phone: $('quoteNewPhone').value.trim(), email: $('quoteNewEmail').value.trim(), equipment: $('quoteNewEquipment').value.trim(), budget: Number($('quoteNewBudget').value || 0), pipeline_stage: stages[0]};
+                state.leads.push(lead);
+                renderPipeline(); renderCRM(); closeModal(); startQuoteForLead(lead.id);
+            }
+            function openSavedQuote(id) {
+                const quote = state.quotes.find(x => String(x.id) === String(id));
+                if (!quote) return;
+                openModal('Quote ready', `<div class="card"><h3>${esc(quote.customer)}</h3><div class="meta">${esc(quote.equipment || 'Equipment to be confirmed')} · ${money(quote.amount)} · ${esc(quote.status)}</div><p>${esc(quote.notes || '')}</p></div><div class="actions"><button class="btn brand" onclick="sendQuote(${quote.id})">Send quote</button><button class="btn light" onclick="closeModal();go('calculator')">Edit calculator</button></div>`)
+            }
+            function sendQuote(id) {
+                const quote = state.quotes.find(x => String(x.id) === String(id));
+                if (!quote) return;
+                quote.status = 'Sent';
+                closeModal(); renderCRM(); toast(`Quote marked sent to ${quote.customer}`)
+            }
+            function toast(t) {
+                const x = $('toast');
+                x.textContent = t;
+                x.classList.add('show');
+                setTimeout( () => x.classList.remove('show'), 2200)
+            }
+            function applySearch() {
+                const query = $('globalSearch').value.trim().toLowerCase();
+                document.querySelectorAll('[data-search]').forEach(x => {
+                    x.hidden = !!query && !x.dataset.search.includes(query)
+                });
+                const results = $('searchResults');
+                if (!query) {
+                    results.classList.remove('show');
+                    results.innerHTML = '';
+                    return
+                }
+                const matches = [
+                    ...state.leads.filter(x => searchable(x.name,x.phone,x.email,x.equipment,x.pipeline_stage).includes(query)).map(x => ({kind: 'Customer', title: x.name, detail: `${x.equipment || 'Equipment not specified'} · ${x.pipeline_stage || 'New'}`, page: 'crm', id: x.id})),
+                    ...state.inventory.filter(x => searchable(x.year,x.make,x.model,x.features,x.status).includes(query)).map(x => ({kind: 'Inventory', title: [x.year,x.make,x.model].filter(Boolean).join(' '), detail: `${money(x.price)} · ${x.status}`, page: 'inventory'})),
+                    ...(state.plan?.actions || []).filter(x => searchable(x.name,x.phone,x.equipment,x.title,x.reason,x.pipeline_stage).includes(query)).map(x => ({kind: 'Priority action', title: x.title, detail: `${x.name} · ${x.equipment || 'Equipment not specified'}`, page: 'win'}))
+                ].slice(0, 8);
+                results.innerHTML = `<h2>${matches.length ? `Search results · ${matches.length}` : 'No matching customers, inventory, or actions'}</h2>${matches.map(x => { const payload = encodeURIComponent(JSON.stringify({page: x.page, id: x.id || null})).replace(/'/g, '%27'); return `<button class="search-result" onclick="openSearchResultEncoded('${payload}')"><strong>${esc(x.kind)} · ${esc(x.title)}</strong><span>${esc(x.detail)}</span></button>` }).join('')}`;
+                results.classList.add('show');
+            }
+            function openSearchResultEncoded(payload) { openSearchResult(JSON.parse(decodeURIComponent(payload)).page, JSON.parse(decodeURIComponent(payload)).id) }
+            function openSearchResult(page, id) {
+                $('globalSearch').value = '';
+                $('searchResults').classList.remove('show');
+                applySearch();
+                go(page);
+                if (page === 'crm' && id) openLeadDetail(id);
+                window.scrollTo({top: 0, behavior: 'smooth'});
+            }
+            function searchable(...values) {
+                return values.filter(Boolean).join(' ').toLowerCase()
+            }
+            function loadDemo() {
+                demoMode = true;
+                $('demoNote').hidden = false;
+                state = {
+                    plan: {summary: {active_leads: 4, overdue_followups: 1, appointments_today: 2, month_gross: 18400, month_units: 3, month_appointments: 8, month_contacts: 36}, goals: {units_goal: 10, gross_goal: 50000, appointments_goal: 20, contacts_goal: 100}, quick_wins: [{key: 'overdue', label: 'Overdue follow-up', count: 1}, {key: 'appointments', label: 'Book an appointment', count: 2}, {key: 'quotes', label: 'Review quotes', count: 1}], actions: [{lead_id: 1, type: 'followup', score: 92, pipeline_stage: 'Negotiating', title: 'Confirm trade-in details', name: 'Jordan Miller', equipment: '2025 Yanmar YM347', reason: 'Quote was viewed yesterday and a decision is expected this week.', phone: '555-0142'}, {lead_id: 2, type: 'appointment', score: 84, pipeline_stage: 'Appointment', title: 'Prepare for tomorrow’s demo', name: 'Casey Rodriguez', equipment: 'SA425 tractor package', reason: 'A scheduled demo is the next commitment.', phone: '555-0188'}]},
+                    leads: [{id: 1, name: 'Jordan Miller', phone: '555-0142', email: 'jordan@example.com', equipment: '2025 Yanmar YM347', budget: 42000, pipeline_stage: 'Negotiating', next_follow_up: 'Tomorrow'}, {id: 2, name: 'Casey Rodriguez', phone: '555-0188', email: 'casey@example.com', equipment: 'SA425 tractor package', budget: 31000, pipeline_stage: 'Appointment', next_follow_up: 'Today'}, {id: 3, name: 'Morgan Lee', phone: '555-0161', email: 'morgan@example.com', equipment: 'Compact tractor', budget: 28000, pipeline_stage: 'Quote'}, {id: 4, name: 'Riley Smith', phone: '555-0173', email: 'riley@example.com', equipment: 'Zero-turn mower', budget: 9500, pipeline_stage: 'Contacted'}, {id: 5, name: 'Taylor Brooks', phone: '555-0124', email: 'taylor@example.com', equipment: '24–30 HP compact tractor', budget: 24000, pipeline_stage: 'New', next_follow_up: 'Friday'}, {id: 6, name: 'Drew Patel', phone: '555-0195', email: 'drew@example.com', equipment: 'Mid-mount mower package', budget: 18000, pipeline_stage: 'Demo', next_follow_up: 'Thursday'}, {id: 7, name: 'Cameron Nguyen', phone: '555-0119', email: 'cameron@example.com', equipment: 'Yanmar UTV', budget: 22000, pipeline_stage: 'Contacted', next_follow_up: 'Next week'}, {id: 8, name: 'Blake Thompson', phone: '555-0157', email: 'blake@example.com', equipment: '48-inch rotary cutter', budget: 4200, pipeline_stage: 'Quote', next_follow_up: 'Monday'}],
+                    inventory: [{id: 1, year: 2025, make: 'Yanmar', model: 'YM347', hours: 6, price: 39500, status: 'Available', features: 'Loader, hydrostatic transmission'}, {id: 2, year: 2024, make: 'Yanmar', model: 'SA425', hours: 42, price: 28900, status: 'Available', features: 'Mower deck, front loader'}],
+                    followups: [{id: 1, name: 'Jordan Miller', due_at: new Date(Date.now() - 86400000).toISOString(), notes: 'Confirm trade-in photos', status: 'Pending'}],
+                    appointments: [{id: 1, lead_name: 'Casey Rodriguez', starts_at: new Date(Date.now() + 86400000).toISOString(), type: 'Demo', notes: 'Bring soil and acreage notes', status: 'Scheduled'}],
+                    quotes: [{id: 1, customer: 'Morgan Lee', equipment: 'Compact tractor', amount: 27250, status: 'Viewed', notes: 'Package includes loader and delivery'}],
+                    deals: [{id: 1, customer: 'Avery Wilson', equipment: 'Yanmar SA324', sale_price: 24600, gross_profit: 5400, sold_at: new Date().toISOString()}], metrics: null
+                };
+                $('greeting').textContent = 'Preview workspace — win the next deal.';
+                $('avatar').textContent = 'TC';
+                $('drawerName').textContent = 'Account';
+                renderWin(); renderPipeline(); renderCRM(); renderInventory(); renderDeals(); renderAIQueue();
+            }
+            function openModal(title, body, centered=false) {
+                $('modalTitle').textContent = title;
+                $('modalBody').innerHTML = body;
+                $('modal').classList.toggle('centered', centered);
+                $('modal').classList.add('open')
+            }
+            function openAccount() {
+                openModal('Account', `<div class="item"><h3>TractorCloser preview</h3><div class="meta">Account preferences, team access, and notification settings will be managed here when the backend is connected.</div></div>`)
+            }
+            function openMobileDrawer() {
+                if (window.matchMedia('(max-width: 850px)').matches) {
+                    $('mobileDrawer').classList.add('open');
+                    $('drawerBackdrop').classList.add('open')
+                }
+            }
+            function closeMobileDrawer() {
+                $('mobileDrawer').classList.remove('open');
+                $('drawerBackdrop').classList.remove('open')
+            }
+            function openHelp() {
+                openModal('Help', `<div class="list"><div class="item"><h3>Need a hand?</h3><div class="meta">Use search to find customers or equipment, use Pipeline to move leads through stages, and open AI for sales coaching.</div></div><div class="item"><h3>Notifications</h3><div class="meta">Follow-up reminders and notification preferences will appear here once the backend is connected.</div></div></div>`)
+            }
+            function openNotifications() {
+                openModal('Notifications', `<div class="list notification-list"><button class="item" onclick="closeModal();openNotificationTarget(1)"><div class="itemhead"><div><h3>Follow-up overdue</h3><div class="meta">Jordan Miller’s trade-in details were due yesterday.</div></div><span class="pill">Action needed</span></div></button><button class="item" onclick="closeModal();openNotificationTarget(2)"><div class="itemhead"><div><h3>Demo tomorrow</h3><div class="meta">Casey Rodriguez has a scheduled tractor demo tomorrow.</div></div><span class="pill">Upcoming</span></div></button><button class="item" onclick="closeModal();openNotificationTarget(3)"><div class="itemhead"><div><h3>Quote viewed</h3><div class="meta">Morgan Lee opened the compact tractor quote.</div></div><span class="pill">Sales signal</span></div></button></div>`)
+            }
+            function openNotificationTarget(leadId) {
+                go('pipeline');
+                openLeadDetail(leadId)
+            }
+            function toggleRailNotifications() {
+                const list = $('railNotifications');
+                list.hidden = !list.hidden;
+                $('notificationChevron').textContent = list.hidden ? '⌄' : '›'
+            }
+            function logout() {
+                if (!confirm('Log out of TractorCloser?')) return;
+                localStorage.removeItem('tractorcloser_token');
+                token = null;
+                loadDemo();
+                go('today');
+                toast('Logged out — preview mode is active')
+            }
+            function closeModal() {
+                $('modal').classList.remove('open', 'centered')
+            }
+            async function api(path, opts={}) {
+                opts.headers = {
+                    ...(opts.headers || {}),
+                    'Content-Type': 'application/json',
+                    Authorization: 'Bearer ' + token
+                };
+                const r = await fetch(path, opts);
+                const d = await r.json().catch( () => ({}));
+                if (!r.ok)
+                    throw Error(d.error || 'Request failed');
+                return d
+            }
+            function go(page) {
+                document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+                $('page-' + page).classList.add('active');
+                document.querySelectorAll('.tabbtn').forEach(x => x.classList.toggle('active', x.dataset.page === page));
+                const mobilePage = ['today','crm','crm-view','ai'].includes(page) ? (page === 'crm-view' ? 'crm' : page) : (['win','pipeline','pipeline-stage'].includes(page) ? 'work' : 'more');
+                document.querySelectorAll('[data-mobile-page]').forEach(x => x.classList.toggle('active', x.dataset.mobilePage === mobilePage));
+                history.replaceState(null, '', '#' + page);
+                if (page === 'today' || page === 'win')
+                    renderWin();
+                if (page === 'pipeline')
+                    renderPipeline();
+                if (page === 'crm')
+                    renderCRM();
+                if (page === 'inventory')
+                    renderInventory();
+                if (page === 'deals')
+                    renderDeals();
+                if (page === 'calculator') { renderPaymentOptions(); calculatePayment(); }
+                if (page === 'ai') {
+                    renderAIQueue();
+                }
+            }
+            function openMobileMenu(menu) {
+                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button></div>`)
+            }
+            function login() {
+                openModal('Sign in', `<div class="field"><label>Email</label><input id="email" type="email"></div><div class="field"><label>Password</label><input id="password" type="password"></div><button class="btn brand" onclick="doLogin()">Sign in</button><p class="muted">Use your existing TractorCloser account.</p>`)
+            }
+            async function doLogin() {
+                try {
+                    const r = await fetch('/api/auth/login', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            email: $('email').value,
+                            password: $('password').value
+                        })
+                    });
+                    const d = await r.json();
+                    if (!r.ok)
+                        throw Error(d.error);
+                    localStorage.setItem('tractorcloser_token', d.token);
+                    token = d.token;
+                    closeModal();
+                    await loadAll()
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function loadAll() {
+                if (!token)
+                    return loadDemo();
+                try {
+                    const [me,plan,leads,inv,fu,appts,quotes,deals,metrics] = await Promise.all([api('/api/me'), api('/api/win-today/v2'), api('/api/leads'), api('/api/inventory'), api('/api/followups'), api('/api/appointments'), api('/api/quotes'), api('/api/deals'), api('/api/metrics')]);
+                    state = {
+                        plan,
+                        leads,
+                        inventory: inv,
+                        followups: fu,
+                        appointments: appts,
+                        quotes,
+                        deals,
+                        metrics
+                    };
+                    $('greeting').textContent = `Hi, ${me.name} — win the next deal.`;
+                    $('avatar').textContent = (me.name || 'TC').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase();
+                    $('drawerName').textContent = me.name || 'Account';
+                    renderWin();
+                    renderPipeline();
+                    renderCRM();
+                    renderInventory();
+                    renderDeals();
+                    renderAIQueue()
+                } catch (e) {
+                    if (/session|authentication|expired/i.test(e.message)) {
+                        localStorage.removeItem('tractorcloser_token');
+                        token = null;
+                        login()
+                    } else
+                        toast(e.message)
+                }
+            }
+            function renderWin() {
+                const p = state.plan;
+                if (!p)
+                    return;
+                const s = p.summary || {};
+                $('tActive').textContent = s.active_leads || 0;
+                $('tUnits').textContent = state.inventory.filter(x => x.status === 'Available').length;
+                $('tOverdue').textContent = s.overdue_followups || 0;
+                $('tGross').textContent = money(s.month_gross);
+                renderGrossProgress(s.month_gross, p.goals?.gross_goal);
+                $('wActive').textContent = s.active_leads || 0;
+                $('wOverdue').textContent = s.overdue_followups || 0;
+                $('wAppt').textContent = s.appointments_today || 0;
+                $('wGross').textContent = money(s.month_gross);
+                renderGoals(p);
+                const html = (p.actions || []).slice(0, 15).map( (a, i) => actionHTML(a, i)).join('') || '<div class="empty">No open actions. Add a lead or inventory.</div>';
+                $('todayActions').innerHTML = html;
+                $('winActions').innerHTML = html;
+                $('quickWins').innerHTML = (p.quick_wins || []).map(q => `<button class="mini" onclick="quickWin('${esc(q.key)}')">${esc(q.label)} · ${q.count}</button>`).join('')
+            }
+            function renderGrossProgress(gross, goal) {
+                const card = $('tGrossCard');
+                const amount = money(gross);
+                if (!goal || Number(goal) <= 0) {
+                    card.innerHTML = `<div class="gross-copy"><b id="tGross">${amount}</b><span>Gross this month</span><button class="stat-link" onclick="go('deals')">Go to deals →</button></div>`;
+                    return
+                }
+                const pct = Math.min(100, Math.round(Number(gross || 0) / Number(goal) * 100));
+                const hue = Math.round(2 + pct * 1.18);
+                card.innerHTML = `<div class="gross-copy"><b id="tGross">${amount}</b><span>Gross this month</span><div class="goal-caption">${amount} of ${money(goal)} goal</div><button class="stat-link" onclick="go('deals')">Go to deals →</button></div><div class="goal-ring" style="--pct:${pct};--ring:hsl(${hue} 72% 40%)" aria-label="${pct}% of gross goal"><span>${pct}%</span></div>`;
+            }
+            function actionHTML(a, i) {
+                const payload = encodeURIComponent(JSON.stringify(a));
+                return `<div class="item priority-action" data-search="${esc(searchable(a.name,a.phone,a.equipment,a.title,a.reason,a.pipeline_stage))}"><div class="itemhead"><div><span class="pill">${esc(a.pipeline_stage || 'Lead')} · ${Number(a.score || 0)} priority</span><h3>${esc(a.title)}</h3><div class="meta">${esc(a.name)} · ${esc(a.equipment || 'Equipment not specified')}</div><div class="meta">${esc(a.reason)}</div></div><div class="actions"><button class="mini" onclick="coachActionEncoded('${payload}')">🧠 AI</button><button class="mini" onclick="completeActionEncoded('${payload}')">✓ Done</button>${a.phone ? `<a class="mini" href="tel:${encodeURIComponent(a.phone)}">☎ Call</a>` : '<button class="mini" disabled aria-label="No phone number">☎ N/A</button>'}</div></div></div>`
+            }
+            function coachActionEncoded(payload) { coachAction(JSON.parse(decodeURIComponent(payload))) }
+            function completeActionEncoded(payload) { completeAction(JSON.parse(decodeURIComponent(payload))) }
+            function renderGoals(p) {
+                const g = p.goals || {};
+                const rows = [['Units', p.summary.month_units, g.units_goal || 10], ['Gross', p.summary.month_gross, g.gross_goal || 50000], ['Appointments', p.summary.month_appointments || 0, g.appointments_goal || 20], ['Contacts', p.summary.month_contacts || 0, g.contacts_goal || 100]];
+                $('todayGoals').innerHTML = rows.map(r => {
+                    const pct = Math.min(100, Math.round(Number(r[1] || 0) / Math.max(1, Number(r[2])) * 100));
+                    return `<div class="goalrow"><div class="goalhead"><span>${r[0]}</span><span>${r[0] === 'Gross' ? money(r[1]) + ' / ' + money(r[2]) : Number(r[1] || 0) + ' / ' + Number(r[2])}</span></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div></div>`
+                }
+                ).join('')
+            }
+            function renderPipeline() {
+                const groups = {};
+                stages.forEach(s => groups[s] = []);
+                state.leads.forEach(l => (groups[l.pipeline_stage || l.status] || groups[stages[0]]).push(l));
+                $('pipeline').innerHTML = stages.map(s => `<div class="stage"><div class="stage-title"><h3>${s} · ${groups[s].length}</h3><button class="stage-view" onclick="openPipelineStage('${s}')">View all →</button></div>${groups[s].map(l => `<div class="leadcard" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})"><strong>${esc(l.name)}</strong><span class="meta">${esc(l.equipment || '')}<br>${l.budget ? money(l.budget) + ' budget · ' : ''}${l.next_follow_up ? 'Next ' + esc(l.next_follow_up) : 'No next follow-up'}</span></div>`).join('') || '<div class="meta">No leads</div>'}</div>`).join('')
+                $('pipelineMobile').innerHTML = stages.map(s => `<button class="stage-launcher" onclick="openPipelineStage('${s}')"><strong>${s}</strong><span>${groups[s].length} ${groups[s].length === 1 ? 'lead' : 'leads'} →</span></button>`).join('')
+            }
+            function openPipelineStage(stage) {
+                const leads = state.leads.filter(l => (l.pipeline_stage || l.status || 'New') === stage);
+                $('stageTitle').textContent = stage;
+                $('stageSubtitle').textContent = `${leads.length} ${leads.length === 1 ? 'lead' : 'leads'} in this stage.`;
+                $('stageLeads').innerHTML = leads.map(l => `<button class="item" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><h3>${esc(l.name)}</h3><div class="meta">${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || 'Equipment not specified')}${l.budget ? ' · ' + money(l.budget) : ''}</div></button>`).join('') || '<div class="empty">No leads in this stage.</div>';
+                go('pipeline-stage');
+            }
+            let pipelineSettingsDraft = [];
+            function openPipelineSettings() {
+                pipelineSettingsDraft = [...stages];
+                openModal('Pipeline settings', `<p class="muted">Rename, reorder, add, or remove stages. Leads in a removed stage will appear in the first stage until reassigned.</p><div class="field"><label>Lead stages</label><div id="stageEditor" class="stage-editor"></div><button class="mini" onclick="addPipelineStage()">+ Add stage</button></div><div class="field"><label>Default follow-up reminder</label><select id="followupReminder"><option value="24" ${followupReminderHours === 24 ? 'selected' : ''}>24 hours after activity</option><option value="48" ${followupReminderHours === 48 ? 'selected' : ''}>48 hours after activity</option><option value="72" ${followupReminderHours === 72 ? 'selected' : ''}>3 days after activity</option><option value="168" ${followupReminderHours === 168 ? 'selected' : ''}>1 week after activity</option></select></div><button class="btn brand" onclick="savePipelineSettings()">Save pipeline settings</button>`);
+                renderPipelineStageEditor();
+            }
+            function renderPipelineStageEditor() {
+                $('stageEditor').innerHTML = pipelineSettingsDraft.map((stage, i) => `<div class="stage-editor-row"><input data-stage-index="${i}" value="${esc(stage)}" aria-label="Stage ${i + 1}"><button class="stage-icon-btn" onclick="movePipelineStage(${i},-1)" ${i === 0 ? 'disabled' : ''} aria-label="Move ${esc(stage)} up">↑</button><button class="stage-icon-btn" onclick="movePipelineStage(${i},1)" ${i === pipelineSettingsDraft.length - 1 ? 'disabled' : ''} aria-label="Move ${esc(stage)} down">↓</button><button class="stage-icon-btn remove" onclick="removePipelineStage(${i})" aria-label="Remove ${esc(stage)}">×</button></div>`).join('')
+            }
+            function readPipelineStageEditor() { return [...document.querySelectorAll('[data-stage-index]')].map(x => x.value.trim()).filter(Boolean) }
+            function movePipelineStage(index, direction) {
+                pipelineSettingsDraft = readPipelineStageEditor();
+                const target = index + direction;
+                if (target < 0 || target >= pipelineSettingsDraft.length) return;
+                [pipelineSettingsDraft[index], pipelineSettingsDraft[target]] = [pipelineSettingsDraft[target], pipelineSettingsDraft[index]];
+                renderPipelineStageEditor()
+            }
+            function removePipelineStage(index) {
+                pipelineSettingsDraft = readPipelineStageEditor();
+                if (pipelineSettingsDraft.length <= 2) return toast('Keep at least two pipeline stages');
+                pipelineSettingsDraft.splice(index, 1);
+                renderPipelineStageEditor()
+            }
+            function addPipelineStage() {
+                pipelineSettingsDraft = readPipelineStageEditor();
+                pipelineSettingsDraft.push('New stage');
+                renderPipelineStageEditor()
+            }
+            function savePipelineSettings() {
+                const nextStages = readPipelineStageEditor();
+                if (nextStages.length < 2) return toast('Keep at least two pipeline stages');
+                if (new Set(nextStages.map(x => x.toLowerCase())).size !== nextStages.length) return toast('Stage names must be unique');
+                stages = nextStages;
+                followupReminderHours = Number($('followupReminder').value);
+                localStorage.setItem('tractorcloser_pipeline_stages', JSON.stringify(stages));
+                localStorage.setItem('tractorcloser_followup_reminder_hours', String(followupReminderHours));
+                closeModal();
+                renderPipeline();
+                toast('Pipeline settings saved')
+            }
+            function renderCRM() {
+                $('crmLeads').innerHTML = state.leads.map(l => `<div class="item" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}"><div class="itemhead"><div><h3>${esc(l.name)}</h3><div class="meta">${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || '')} · ${esc(l.pipeline_stage || l.status)}</div></div><button class="mini" onclick="openLeadDetail(${l.id})">Open</button></div></div>`).join('') || '<div class="empty">No customers yet.</div>';
+                const pending = state.followups.filter(f => f.status === 'Pending');
+                $('crmFollowups').innerHTML = pending.map(f => `<div class="item"><div class="itemhead"><div><h3>${esc(f.name)}</h3><div class="meta">Due ${new Date(f.due_at).toLocaleString()}<br>${esc(f.notes || '')}</div></div><button class="mini" onclick="completeFollowup(${f.id})">Done</button></div></div>`).join('') || '<div class="empty">No pending follow-ups.</div>';
+                $('crmAppointments').innerHTML = state.appointments.filter(a => a.status === 'Scheduled').map(a => `<div class="item"><div class="itemhead"><div><h3>${esc(a.lead_name)}</h3><div class="meta">${new Date(a.starts_at).toLocaleString()} · ${esc(a.type)}<br>${esc(a.notes || '')}</div></div><div class="actions"><button class="mini" onclick="updateAppointment(${a.id},'Completed')">Complete</button><button class="mini" onclick="updateAppointment(${a.id},'Cancelled')">Cancel</button></div></div></div>`).join('') || '<div class="empty">No appointments.</div>';
+                $('crmQuotes').innerHTML = state.quotes.map(q => `<div class="item"><div class="itemhead"><div><h3>${esc(q.customer)}</h3><div class="meta">${esc(q.equipment || '')} · ${money(q.amount)} · ${esc(q.status)}<br>${esc(q.notes || '')}</div></div><div class="actions">${q.status === 'Draft' ? `<button class="mini" onclick="updateQuote(${q.id},'Sent')">Send</button>` : ''}${['Sent', 'Viewed', 'Follow-up'].includes(q.status) ? `<button class="mini" onclick="updateQuote(${q.id},'Follow-up')">Follow up</button>` : ''}${q.status !== 'Accepted' && q.status !== 'Lost' ? `<button class="mini" onclick="updateQuote(${q.id},'Accepted')">Accepted</button><button class="mini" onclick="updateQuote(${q.id},'Lost')">Lost</button>` : ''}</div></div></div>`).join('') || '<div class="empty">No quotes yet.</div>'
+                const scheduled = state.appointments.filter(a => a.status === 'Scheduled');
+                $('crmHub').innerHTML = `<button class="crm-hub-card" onclick="openCRMView('customers')"><em>👥</em><strong>Customers</strong><span>${state.leads.length} customer records</span></button><button class="crm-hub-card" onclick="openCRMView('followups')"><em>📅</em><strong>Follow-ups</strong><span>${pending.length} pending reminder${pending.length === 1 ? '' : 's'}</span></button><button class="crm-hub-card" onclick="openCRMView('appointments')"><em>🗓️</em><strong>Appointments</strong><span>${scheduled.length} scheduled</span></button><button class="crm-hub-card" onclick="openCRMView('quotes')"><em>📄</em><strong>Quotes</strong><span>${state.quotes.length} active quote${state.quotes.length === 1 ? '' : 's'}</span></button>`
+            }
+            function openCRMView(view) {
+                const definitions = {
+                    customers: {title: 'Customers', subtitle: 'Customer records, contact details, and pipeline stages.', add: '+ Add customer', action: 'openLead()', content: $('crmLeads').innerHTML},
+                    followups: {title: 'Follow-ups', subtitle: 'Open reminders that need attention.', add: '', action: '', content: $('crmFollowups').innerHTML},
+                    appointments: {title: 'Appointments', subtitle: 'Scheduled meetings, demos, and deliveries.', add: '+ Schedule appointment', action: 'openAppointment()', content: $('crmAppointments').innerHTML},
+                    quotes: {title: 'Quotes', subtitle: 'Quotes in progress and their current status.', add: '+ New quote', action: 'startQuoteForLead(null)', content: $('crmQuotes').innerHTML}
+                }[view];
+                $('crmViewTitle').textContent = definitions.title;
+                $('crmViewSubtitle').textContent = definitions.subtitle;
+                $('crmViewContent').innerHTML = definitions.content;
+                $('crmViewAdd').textContent = definitions.add;
+                $('crmViewAdd').style.display = definitions.add ? '' : 'none';
+                $('crmViewAdd').setAttribute('onclick', definitions.action);
+                go('crm-view');
+            }
+            function renderInventory() {
+                $('inventory').innerHTML = state.inventory.map(i => `<div class="item" data-search="${esc(searchable(i.year,i.make,i.model,i.features))}"><div class="itemhead"><div><h3>${esc(i.year || '')} ${esc(i.make)} ${esc(i.model)}</h3><div class="meta">${i.hours || 0} hrs · ${money(i.price)} · ${esc(i.status)}<br>${esc(i.features || '')}</div></div><div class="actions"><button class="mini" onclick="toggleInventory(${i.id},'${i.status === 'Available' ? 'Sold' : 'Available'}')">${i.status === 'Available' ? 'Mark sold' : 'Mark available'}</button><button class="mini" onclick="deleteInventory(${i.id})">Delete</button></div></div></div>`).join('') || '<div class="empty">No inventory yet.</div>'
+            }
+            function renderDeals() {
+                const d = state.deals;
+                const gross = d.reduce( (s, x) => s + Number(x.gross_profit || 0), 0)
+                  , vol = d.reduce( (s, x) => s + Number(x.sale_price || 0), 0);
+                $('dSold').textContent = d.length;
+                $('dGross').textContent = money(gross);
+                $('dVolume').textContent = money(vol);
+                $('deals').innerHTML = d.map(x => `<div class="item"><div class="itemhead"><div><h3>${esc(x.customer)}</h3><div class="meta">${esc(x.equipment || '')} · ${money(x.sale_price)} sale · <b>${money(x.gross_profit)} gross</b></div></div><span class="pill">${new Date(x.sold_at).toLocaleDateString()}</span></div></div>`).join('') || '<div class="empty">No closed deals yet.</div>'
+            }
+            function renderAIQueue() {
+                $('aiQueue').innerHTML = (state.plan?.actions || []).slice(0, 10).map( (a, i) => actionHTML(a, i)).join('') || '<div class="empty">No priority actions.</div>'
+            }
+            function openGoals() {
+                const g = state.plan?.goals || {};
+                openModal('Set monthly goals', `<div class="formgrid"><div class="field"><label>Units</label><input id="gUnits" type="number" value="${g.units_goal || 10}"></div><div class="field"><label>Gross profit</label><input id="gGross" type="number" value="${g.gross_goal || 50000}"></div><div class="field"><label>Appointments</label><input id="gAppts" type="number" value="${g.appointments_goal || 20}"></div><div class="field"><label>Contacts</label><input id="gContacts" type="number" value="${g.contacts_goal || 100}"></div></div><button class="btn brand" onclick="saveGoals()">Save goals</button>`)
+            }
+            async function saveGoals() {
+                try {
+                    await api('/api/win-today/goals', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            units_goal: $('gUnits').value,
+                            gross_goal: $('gGross').value,
+                            appointments_goal: $('gAppts').value,
+                            contacts_goal: $('gContacts').value
+                        })
+                    });
+                    closeModal();
+                    await loadAll();
+                    toast('Goals saved')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            function openLead() {
+                openModal('Add customer', `<div class="formgrid"><div class="field"><label>Name</label><input id="lName"></div><div class="field"><label>Phone</label><input id="lPhone"></div><div class="field"><label>Email</label><input id="lEmail" type="email"></div><div class="field"><label>Equipment</label><input id="lEquip" placeholder="2026 Yanmar YM347"></div><div class="field"><label>Budget</label><input id="lBudget" type="number"></div><div class="field"><label>Next follow-up</label><input id="lDate" type="date"></div><div class="field full"><label>Notes</label><textarea id="lNotes"></textarea></div></div><button class="btn brand" onclick="saveLead()">Create customer</button>`)
+            }
+            async function saveLead() {
+                try {
+                    await api('/api/leads', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            name: $('lName').value,
+                            phone: $('lPhone').value,
+                            email: $('lEmail').value,
+                            equipment: $('lEquip').value,
+                            budget: $('lBudget').value,
+                            next_follow_up: $('lDate').value || null,
+                            notes: $('lNotes').value
+                        })
+                    });
+                    closeModal();
+                    await loadAll();
+                    toast('Customer added')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            function openLeadDetail(id) {
+                const l = state.leads.find(x => String(x.id) === String(id));
+                if (!l)
+                    return;
+                const stage = l.pipeline_stage || l.status || stages[0];
+                const followupEnabled = l.follow_up_enabled ?? !['Negotiating', 'Sold'].includes(stage);
+                const customerQuotes = state.quotes.filter(q => String(q.lead_id) === String(id));
+                openModal(l.name, `<div class="meta">${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || '')} · ${esc(stage)}</div><div class="field"><label>Pipeline stage</label><select id="detailStage">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div><div class="actions"><button class="mini" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button><button class="mini" onclick="startQuoteForLead(${id});closeModal()">Create quote</button><button class="mini" onclick="showDealPlan(${id})">✦ Deal Plan</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.amount)} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
+                loadActivities(id)
+            }
+            async function saveLeadDetail(id) {
+                const l = state.leads.find(x => String(x.id) === String(id));
+                const nextStage = $('detailStage').value;
+                const note = $('activityBody').value.trim();
+                const followupEnabled = $('detailFollowup').checked;
+                const previousFollowupEnabled = l.follow_up_enabled ?? !['Negotiating', 'Sold'].includes(l.pipeline_stage || l.status || stages[0]);
+                const followupChanged = previousFollowupEnabled !== followupEnabled;
+                try {
+                    if (demoMode) {
+                        l.pipeline_stage = nextStage;
+                        l.follow_up_enabled = followupEnabled;
+                        if (note) l.activities = [...(l.activities || []), {type: 'note', body: note, created_at: new Date().toISOString()}];
+                        if (followupEnabled && followupChanged) state.followups.push({id: Date.now(), lead_id: id, name: l.name, due_at: new Date(Date.now() + followupReminderHours * 3600000).toISOString(), notes: 'Scheduled from CRM', status: 'Pending'});
+                        closeModal(); renderPipeline(); renderCRM(); renderWin(); toast('Customer updates saved');
+                        return
+                    }
+                    await api('/api/leads/' + id + '/pipeline', {method: 'PATCH', body: JSON.stringify({pipeline_stage: nextStage, follow_up_enabled: followupEnabled})});
+                    if (note) await api('/api/leads/' + id + '/activities', {method: 'POST', body: JSON.stringify({type: 'note', body: note})});
+                    if (followupEnabled && followupChanged) await api('/api/followups', {method: 'POST', body: JSON.stringify({lead_id: id, due_at: new Date(Date.now() + followupReminderHours * 3600000).toISOString(), notes: 'Scheduled from CRM'})});
+                    closeModal(); await loadAll(); toast('Customer updates saved')
+                } catch (e) { toast(e.message) }
+            }
+            async function showDealPlan(id) {
+                openModal('AI Deal Plan', '<p>Analyzing lead, activity and inventory…</p>');
+                try {
+                    const r = await api('/api/ai/deal-plan', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            lead_id: id
+                        })
+                    });
+                    const inv = (r.inventory_recommendations || []).map(x => `<li>Unit #${esc(x.inventory_id)} — ${esc(x.reason)}</li>`).join('') || '<li>No specific inventory recommendation.</li>';
+                    openModal(r.headline || 'AI Deal Plan', `<p><b>Objective:</b> ${esc(r.objective || '')}</p><h3>Next actions</h3><ol>${(r.next_actions || []).map(x => `<li>${esc(x)}</li>`).join('')}</ol><h3>Questions</h3><ul>${(r.questions || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul><h3>Inventory</h3><ul>${inv}</ul><h3>Suggested message</h3><div class="card"><p>${esc(r.message || '').replace(/\n/g, '<br>')}</p></div><h3>Risks</h3><ul>${(r.risks || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul>`)
+                } catch (e) {
+                    openModal('AI Deal Plan unavailable', `<p>${esc(e.message)}</p>`)
+                }
+            }
+
+            async function moveLead(id) {
+                try {
+                    await api('/api/leads/' + id + '/pipeline', {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            pipeline_stage: $('detailStage').value
+                        })
+                    });
+                    await loadAll();
+                    toast('Pipeline updated');
+                    openLeadDetail(id)
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function loadActivities(id) {
+                const lead = state.leads.find(x => String(x.id) === String(id));
+                if (demoMode) {
+                    const activities = lead?.activities || [];
+                    $('activityList').innerHTML = activities.map(x => `<div class="item"><b>${esc(x.type)}</b><div class="meta">${new Date(x.created_at).toLocaleString()}</div><p>${esc(x.body)}</p></div>`).join('') || '<div class="empty">No activity yet.</div>';
+                    return
+                }
+                try {
+                    const a = await api('/api/leads/' + id + '/activities');
+                    $('activityList').innerHTML = a.map(x => `<div class="item"><b>${esc(x.type)}</b><div class="meta">${new Date(x.created_at).toLocaleString()}</div><p>${esc(x.body)}</p></div>`).join('') || '<div class="empty">No activity yet.</div>'
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function addActivity(id) {
+                try {
+                    await api('/api/leads/' + id + '/activities', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            type: 'note',
+                            body: $('activityBody').value
+                        })
+                    });
+                    $('activityBody').value = '';
+                    loadActivities(id);
+                    toast('Activity saved')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function addFollowup(id) {
+                const when = new Date(Date.now() + followupReminderHours * 3600000);
+                try {
+                    await api('/api/followups', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            lead_id: id,
+                            due_at: when.toISOString(),
+                            notes: 'Scheduled from CRM'
+                        })
+                    });
+                    closeModal();
+                    await loadAll();
+                    toast('Follow-up scheduled')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function completeFollowup(id) {
+                try {
+                    await api('/api/followups/' + id, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            status: 'Completed'
+                        })
+                    });
+                    await loadAll();
+                    toast('Follow-up completed')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            function openInventory() {
+                openModal('Add equipment', `<div class="formgrid"><div class="field"><label>Year</label><input id="iYear" type="number"></div><div class="field"><label>Make</label><input id="iMake"></div><div class="field"><label>Model</label><input id="iModel"></div><div class="field"><label>Hours</label><input id="iHours" type="number"></div><div class="field"><label>Price</label><input id="iPrice" type="number"></div><div class="field"><label>Status</label><select id="iStatus"><option>Available</option><option>Sold</option></select></div><div class="field full"><label>Features</label><textarea id="iFeatures"></textarea></div></div><button class="btn brand" onclick="saveInventory()">Add equipment</button>`)
+            }
+            async function saveInventory() {
+                try {
+                    await api('/api/inventory', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            year: $('iYear').value,
+                            make: $('iMake').value,
+                            model: $('iModel').value,
+                            hours: $('iHours').value,
+                            price: $('iPrice').value,
+                            status: $('iStatus').value,
+                            features: $('iFeatures').value
+                        })
+                    });
+                    closeModal();
+                    await loadAll();
+                    toast('Inventory added')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function toggleInventory(id, status) {
+                try {
+                    await api('/api/inventory/' + id, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            status
+                        })
+                    });
+                    await loadAll()
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function deleteInventory(id) {
+                if (!confirm('Delete this equipment?'))
+                    return;
+                try {
+                    await api('/api/inventory/' + id, {
+                        method: 'DELETE'
+                    });
+                    await loadAll()
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            function openDeal() {
+                openModal('Record sold unit', `<div class="formgrid"><div class="field"><label>Customer / lead</label><select id="dLead"><option value="">Select lead (optional)</option>${state.leads.filter(l => !['Sold', 'Lost'].includes(l.pipeline_stage || l.status)).map(l => `<option value="${l.id}">${esc(l.name)} · ${esc(l.equipment || '')}</option>`).join('')}</select></div><div class="field"><label>Inventory unit</label><select id="dInventory"><option value="">Select unit (optional)</option>${state.inventory.filter(i => i.status === 'Available').map(i => `<option value="${i.id}">${esc([i.year, i.make, i.model].filter(Boolean).join(' '))}</option>`).join('')}</select></div><div class="field"><label>Customer</label><input id="dCustomer"></div><div class="field"><label>Equipment</label><input id="dEquipment"></div><div class="field"><label>Sale price</label><input id="dPrice" type="number"></div><div class="field"><label>Gross profit</label><input id="dProfit" type="number"></div></div><p class="meta">Recording the deal will close the selected lead, complete its pending follow-ups, and mark the selected inventory unit sold.</p><button class="btn brand" onclick="saveDeal()">Record deal</button>`)
+            }
+            async function saveDeal() {
+                try {
+                    const leadId = $('dLead').value || null
+                      , invId = $('dInventory').value || null;
+                    let customer = $('dCustomer').value.trim()
+                      , equipment = $('dEquipment').value.trim();
+                    if (!customer && leadId) {
+                        const l = state.leads.find(x => String(x.id) === String(leadId));
+                        customer = l?.name || '';
+                        equipment = equipment || l?.equipment || ''
+                    }
+                    if (!equipment && invId) {
+                        const i = state.inventory.find(x => String(x.id) === String(invId));
+                        equipment = [i?.year, i?.make, i?.model].filter(Boolean).join(' ')
+                    }
+                    await api('/api/deals', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            customer,
+                            equipment,
+                            sale_price: $('dPrice').value,
+                            gross_profit: $('dProfit').value,
+                            lead_id: leadId,
+                            inventory_id: invId
+                        })
+                    });
+                    closeModal();
+                    await loadAll();
+                    toast('Deal recorded — pipeline, follow-ups and inventory updated')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            function leadOptions(includeSold=false) {
+                return state.leads.filter(l => includeSold || !['Sold', 'Lost'].includes(l.pipeline_stage || l.status)).map(l => `<option value="${l.id}">${esc(l.name)} · ${esc(l.equipment || '')}</option>`).join('')
+            }
+            function openAppointment() {
+                const d = new Date(Date.now() + 2 * 3600000);
+                d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+                const local = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                openModal('Schedule appointment', `<div class="formgrid"><div class="field full"><label>Customer</label><select id="aLead"><option value="">Select customer</option>${leadOptions()}</select></div><div class="field"><label>Date & time</label><input id="aWhen" type="datetime-local" value="${local}"></div><div class="field"><label>Type</label><select id="aType"><option>Appointment</option><option>Demo</option><option>Store visit</option><option>Delivery</option><option>Phone</option></select></div><div class="field full"><label>Notes</label><textarea id="aNotes" placeholder="What is the commitment for this appointment?"></textarea></div></div><button class="btn brand" onclick="saveAppointment()">Schedule appointment</button>`)
+            }
+            async function saveAppointment() {
+                try {
+                    const leadId = $('aLead').value;
+                    if (!leadId)
+                        return toast('Select a customer');
+                    await api('/api/appointments', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            lead_id: leadId,
+                            starts_at: new Date($('aWhen').value).toISOString(),
+                            type: $('aType').value,
+                            notes: $('aNotes').value
+                        })
+                    });
+                    closeModal();
+                    await loadAll();
+                    toast('Appointment scheduled')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function updateAppointment(id, status) {
+                try {
+                    await api('/api/appointments/' + id, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            status
+                        })
+                    });
+                    await loadAll();
+                    toast(status === 'Completed' ? 'Appointment completed' : 'Appointment cancelled')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            function openQuoteForm() {
+                openModal('Create quote', `<div class="formgrid"><div class="field full"><label>Customer</label><select id="qLead"><option value="">No linked lead</option>${leadOptions(true)}</select></div><div class="field"><label>Customer name</label><input id="qCustomer"></div><div class="field"><label>Equipment</label><input id="qEquipment"></div><div class="field"><label>Amount</label><input id="qAmount" type="number"></div><div class="field"><label>Status</label><select id="qStatus"><option>Draft</option><option>Sent</option></select></div><div class="field full"><label>Notes</label><textarea id="qNotes" placeholder="What is included and what decision comes next?"></textarea></div></div><div class="actions"><button class="btn brand" onclick="saveQuote()">Create quote</button><button class="btn light" onclick="closeModal();go('calculator')">Use payment calculator</button></div>`)
+            }
+            async function saveQuote() {
+                try {
+                    const leadId = $('qLead').value || null;
+                    let customer = $('qCustomer').value.trim()
+                      , equipment = $('qEquipment').value.trim();
+                    if (!customer && leadId) {
+                        const l = state.leads.find(x => String(x.id) === String(leadId));
+                        customer = l?.name || '';
+                        equipment = equipment || l?.equipment || ''
+                    }
+                    if (!customer)
+                        return toast('Customer is required');
+                    await api('/api/quotes', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            lead_id: leadId,
+                            customer,
+                            equipment,
+                            amount: $('qAmount').value,
+                            status: $('qStatus').value,
+                            notes: $('qNotes').value
+                        })
+                    });
+                    closeModal();
+                    await loadAll();
+                    toast('Quote created')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function updateQuote(id, status) {
+                try {
+                    await api('/api/quotes/' + id, {
+                        method: 'PATCH',
+                        body: JSON.stringify({
+                            status
+                        })
+                    });
+                    await loadAll();
+                    toast('Quote updated')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function completeAction(a) {
+                if (!confirm(`Mark ${a.name} as worked?`))
+                    return;
+                try {
+                    await api('/api/win-today/complete', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            lead_id: a.lead_id,
+                            action_type: a.type,
+                            body: `Win Today completed: ${a.title}`
+                        })
+                    });
+                    await loadAll();
+                    toast('Action completed')
+                } catch (e) {
+                    toast(e.message)
+                }
+            }
+            async function coachAction(a) {
+                openModal('AI Next Move', '<p>Thinking…</p>');
+                try {
+                    const r = await api('/api/win-today/ai', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: a,
+                            mode: a.type
+                        })
+                    });
+                    openModal(r.headline || 'AI Next Move', `<p><b>Why now:</b> ${esc(r.why_now)}</p><p><b>Next action:</b> ${esc(r.next_action)}</p><div class="card"><b>Message</b><p>${esc(r.message).replace(/\n/g, '<br>')}</p><button class="btn brand" onclick='navigator.clipboard.writeText(${JSON.stringify(r.message || '')});toast("Copied")'>Copy</button></div><p><b>Fallback:</b> ${esc(r.fallback_message)}</p>`)
+                } catch (e) {
+                    openModal('AI unavailable', `<p>${esc(e.message)}</p>`)
+                }
+            }
+            async function coachFree() {
+                const text = $('coachText').value.trim();
+                if (!text)
+                    return toast('Describe the situation first');
+                openModal('AI Closing Coach', '<p>Thinking…</p>');
+                try {
+                    const r = await api('/api/ai', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            type: 'Handle an objection',
+                            details: text
+                        })
+                    });
+                    openModal('AI Closing Coach', `<div class="card"><p>${esc(r.result).replace(/\n/g, '<br>')}</p><button class="btn brand" onclick='navigator.clipboard.writeText(${JSON.stringify(r.result || '')});toast("Copied")'>Copy</button></div>`)
+                } catch (e) {
+                    openModal('AI unavailable', `<p>${esc(e.message)}</p>`)
+                }
+            }
+            async function runManager() {
+                go('ai');
+                $('managerResult').innerHTML = '<p>Analyzing pipeline, follow-ups, appointments, inventory and deals…</p>';
+                try {
+                    const r = await api('/api/ai/sales-manager', {
+                        method: 'POST',
+                        body: JSON.stringify({})
+                    });
+                    $('managerResult').innerHTML = `<h3>${esc(r.headline || 'Manager brief')}</h3><p>${esc(r.summary || '')}</p><h3>Top priorities</h3><ol>${(r.priorities || []).map(x => `<li><b>${esc(x.title)}</b><br>${esc(x.reason)}<br><span class="muted">Next: ${esc(x.next_action)}</span></li>`).join('')}</ol><h3>Risks</h3><ul>${(r.risks || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul><h3>Manager coaching</h3><p>${esc(r.coaching || '')}</p>`
+                } catch (e) {
+                    $('managerResult').innerHTML = '<p>' + esc(e.message) + '</p>'
+                }
+            }
+            async function quickWin(key) {
+                if (key === 'appointments') {
+                    go('crm');
+                    openAppointment();
+                    return
+                }
+                if (key === 'quotes') {
+                    go('crm');
+                    document.getElementById('crmQuotes')?.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                    return
+                }
+                if (key === 'negotiating') {
+                    const q = (state.plan?.actions || []).find(a => a.type === 'close');
+                    go('win');
+                    if (q)
+                        coachAction(q);
+                    else
+                        toast('No negotiating opportunity is ready.')
+                } else if (key === 'overdue') {
+                    const q = (state.plan?.actions || []).find(a => a.title.toLowerCase().includes('overdue'));
+                    go('win');
+                    if (q)
+                        coachAction(q);
+                    else
+                        toast('No overdue follow-up is ready.')
+                } else {
+                    go('win');
+                    const q = (state.plan?.actions || [])[0];
+                    if (q)
+                        coachAction(q);
+                    else
+                        toast('Create or work a lead to generate a specific action')
+                }
+            }
+            window.addEventListener('popstate', () => go(location.hash.slice(1) || 'today'));
+            (function() {
+                const p = location.hash.slice(1);
+                if (p && document.getElementById('page-' + p)) {
+                    go(p)
+                }
+                loadAll()
+            }
+            )();
+        </script>
+    </body>
+</html>
