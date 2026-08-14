@@ -860,6 +860,7 @@
                     justify-content: flex-start;
                     gap: 5px;
                     padding: 88px 12px 22px;
+                    overflow: hidden;
                     border-top: 0;
                     border-right: 1px solid var(--line);
                     box-shadow: 3px 0 14px rgba(16,24,39,.04)
@@ -886,6 +887,17 @@
                     font-size: 15px;
                     font-weight: 800;
                     white-space: normal
+                }
+                .desktop-tabs .tabbtn[hidden] { display: none }
+                .desktop-tabs .nav-scroll {
+                    display: grid;
+                    align-content: start;
+                    gap: 5px;
+                    min-height: 0;
+                    flex: 1 1 auto;
+                    overflow-y: auto;
+                    overscroll-behavior: contain;
+                    padding-right: 3px
                 }
                 .desktop-tabs .app-icon { margin-right: 0 }
                 .desktop-tabs .tabbtn.active {
@@ -953,7 +965,7 @@
                 .rail-notification strong { display: block; color: var(--ink); font-size: 12px }
                 .desktop-tabs .nav-logout { color: var(--danger) }
                 .desktop-tabs .nav-logout:hover { background: #fff1f0; color: var(--danger) }
-                .desktop-tabs .nav-bottom { display: grid; gap: 5px; margin-top: auto }
+                .desktop-tabs .nav-bottom { display: grid; gap: 5px; flex: 0 0 auto; padding-top: 8px; background: var(--card) }
             }
 
             .page {
@@ -1522,20 +1534,22 @@
             </section>
         </main>
         <nav class="tabs desktop-tabs" aria-label="Primary navigation">
-            <button class="tabbtn active" data-page="today" onclick="go('today')"><span class="app-icon home-mark">⌂</span>Today</button>
-            <button class="tabbtn" data-page="win" onclick="go('win')"><span class="app-icon">✓</span>To-Do</button>
-            <button class="tabbtn" data-page="pipeline" onclick="go('pipeline')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor" opacity=".58"/><circle cx="19" cy="12" r="2" fill="currentColor" opacity=".3"/></svg></span>Pipeline</button>
-            <button class="tabbtn" data-page="crm" onclick="go('crm')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span>CRM</button>
-            <button class="tabbtn" data-page="inventory" onclick="go('inventory')"><span class="app-icon">▦</span>Inventory</button>
-            <button class="tabbtn" data-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span>AI</button>
-            <button class="tabbtn" data-page="deals" onclick="go('deals')"><span class="app-icon">$</span>Deals</button>
-            <button id="teamNav" class="tabbtn" data-page="team" onclick="go('team')" hidden><span class="app-icon">♙</span>Team</button>
-            <button class="tabbtn" data-page="calculator" onclick="go('calculator')"><span class="app-icon">#</span>Calculator</button>
-            <button class="tabbtn nav-utility" onclick="toggleRailNotifications()"><span class="nav-icon app-icon round">!</span>Notifications<span class="notification-badge">3</span><span id="notificationChevron" class="notification-chevron closed">⌄</span></button>
-            <div id="railNotifications" class="rail-notifications" hidden>
-                <button class="rail-notification" onclick="openNotificationTarget(1)"><strong>Follow-up overdue</strong>Jordan Miller</button>
-                <button class="rail-notification" onclick="openNotificationTarget(2)"><strong>Demo tomorrow</strong>Casey Rodriguez</button>
-                <button class="rail-notification" onclick="openNotificationTarget(3)"><strong>Quote viewed</strong>Morgan Lee</button>
+            <div class="nav-scroll">
+                <button class="tabbtn active" data-page="today" onclick="go('today')"><span class="app-icon home-mark">⌂</span>Today</button>
+                <button class="tabbtn" data-page="win" onclick="go('win')"><span class="app-icon">✓</span>To-Do</button>
+                <button class="tabbtn" data-page="pipeline" onclick="go('pipeline')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor" opacity=".58"/><circle cx="19" cy="12" r="2" fill="currentColor" opacity=".3"/></svg></span>Pipeline</button>
+                <button class="tabbtn" data-page="crm" onclick="go('crm')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span>CRM</button>
+                <button class="tabbtn" data-page="inventory" onclick="go('inventory')"><span class="app-icon">▦</span>Inventory</button>
+                <button class="tabbtn" data-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span>AI</button>
+                <button class="tabbtn" data-page="deals" onclick="go('deals')"><span class="app-icon">$</span>Deals</button>
+                <button id="teamNav" class="tabbtn" data-page="team" onclick="go('team')" hidden><span class="app-icon">♙</span>Team</button>
+                <button class="tabbtn" data-page="calculator" onclick="go('calculator')"><span class="app-icon">#</span>Calculator</button>
+                <button class="tabbtn nav-utility" onclick="toggleRailNotifications()"><span class="nav-icon app-icon round">!</span>Notifications<span class="notification-badge">3</span><span id="notificationChevron" class="notification-chevron closed">⌄</span></button>
+                <div id="railNotifications" class="rail-notifications" hidden>
+                    <button class="rail-notification" onclick="openNotificationTarget(1)"><strong>Follow-up overdue</strong>Jordan Miller</button>
+                    <button class="rail-notification" onclick="openNotificationTarget(2)"><strong>Demo tomorrow</strong>Casey Rodriguez</button>
+                    <button class="rail-notification" onclick="openNotificationTarget(3)"><strong>Quote viewed</strong>Morgan Lee</button>
+                </div>
             </div>
             <div class="nav-bottom">
                 <button class="tabbtn nav-utility" onclick="openAccount()"><span class="nav-icon app-icon svg-mark round"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span>Account</button>
@@ -1875,6 +1889,10 @@
                 return d
             }
             function go(page) {
+                if (page === 'team' && !['admin', 'developer'].includes(state.currentUser?.role)) {
+                    toast('Team management is available to Admin and Developer accounts only');
+                    page = 'today';
+                }
                 document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
                 $('page-' + page).classList.add('active');
                 document.querySelectorAll('.tabbtn').forEach(x => x.classList.toggle('active', x.dataset.page === page));
@@ -1899,7 +1917,7 @@
                 }
             }
             function openMobileMenu(menu) {
-                const teamLink = state.currentUser?.role === 'admin' ? `<button class="item" onclick="closeModal();go('team')"><div class="itemhead"><div><h3><span class="app-icon">♙</span>Team</h3><div class="meta">Assignments and team performance.</div></div></div></button>` : '';
+                const teamLink = ['admin', 'developer'].includes(state.currentUser?.role) ? `<button class="item" onclick="closeModal();go('team')"><div class="itemhead"><div><h3><span class="app-icon">♙</span>Team</h3><div class="meta">Assignments and team performance.</div></div></div></button>` : '';
                 openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamLink}</div>`)
             }
             function login() {
@@ -1922,7 +1940,7 @@
                 $('signInButton').hidden = true;
                 $('demoNote').hidden = false;
                 $('demoNote').textContent = 'Live customers and pipeline · remaining modules are in preview mode.';
-                $('teamNav').hidden = user.role !== 'admin';
+                $('teamNav').hidden = !['admin', 'developer'].includes(user.role);
                 hideLoginScreen()
             }
             async function doLogin() {
@@ -1960,7 +1978,7 @@
                     { loadDemo(); showLoginScreen(); return }
                 try {
                     const [me, leads, deals, followups, appointments, inventory, quotes, metrics, settings] = await Promise.all([api('/api/me'), api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics'), api('/api/settings')]);
-                    const team = me.role === 'admin' ? await api('/api/team') : null;
+                    const team = ['admin', 'developer'].includes(me.role) ? await api('/api/team') : null;
                     loadDemo();
                     state.leads = leads;
                     state.deals = deals;
