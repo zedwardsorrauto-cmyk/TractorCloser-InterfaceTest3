@@ -1407,7 +1407,7 @@
                         <h1>Pipeline</h1>
                         <p>Move every opportunity toward a commitment.</p>
                     </div>
-                    <div class="actions"><button class="btn light" onclick="openPipelineSettings()">⚙ Settings</button><button class="btn brand" onclick="openLead()">+ Add lead</button></div>
+                    <div class="actions"><select id="pipelineOwnerFilter" hidden onchange="renderPipeline()" aria-label="Filter pipeline by salesperson"></select><button class="btn light" onclick="openPipelineSettings()">⚙ Settings</button><button class="btn brand" onclick="openLead()">+ Add lead</button></div>
                 </div>
                 <div class="section stagegrid pipeline-desktop" id="pipeline"></div>
                 <div class="section pipeline-mobile" id="pipelineMobile"></div>
@@ -1990,6 +1990,7 @@
                     state.quotes = quotes;
                     state.metrics = metrics;
                     state.team = team;
+                    state.currentUser = me;
                     state.plan.summary = {...state.plan.summary, ...metrics};
                     state.plan.goals = settings.goals || state.plan.goals;
                     stages = settings.stages || stages;
@@ -2059,14 +2060,31 @@
                 ).join('')
             }
             function renderPipeline() {
+                renderPipelineOwnerFilter();
+                const selectedOwner = $('pipelineOwnerFilter').value;
+                const visibleLeads = selectedOwner === 'all' ? state.leads : state.leads.filter(lead => String(lead.assigned_user_id || '') === selectedOwner);
                 const groups = {};
                 stages.forEach(s => groups[s] = []);
-                state.leads.forEach(l => (groups[l.pipeline_stage || l.status] || groups[stages[0]]).push(l));
-                $('pipeline').innerHTML = stages.map(s => `<div class="stage"><div class="stage-title"><h3>${s} · ${groups[s].length}</h3><button class="stage-view" onclick="openPipelineStage('${s}')">View all →</button></div>${groups[s].slice(0, 2).map(l => `<button class="leadcard" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><strong>${esc(l.name)}</strong><span class="meta">${esc(l.equipment || '')}<br>${l.budget ? money(l.budget) + ' budget · ' : ''}${l.next_follow_up ? 'Next ' + esc(l.next_follow_up) : 'No next follow-up'}</span></button>`).join('') || '<div class="meta">No leads</div>'}</div>`).join('')
+                visibleLeads.forEach(l => (groups[l.pipeline_stage || l.status] || groups[stages[0]]).push(l));
+                $('pipeline').innerHTML = stages.map(s => `<div class="stage"><div class="stage-title"><h3>${s} · ${groups[s].length}</h3><button class="stage-view" onclick="openPipelineStage('${s}')">View all →</button></div>${groups[s].slice(0, 2).map(l => `<button class="leadcard" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><strong>${esc(l.name)}</strong><span class="meta">${esc(l.equipment || '')}<br>${esc(leadOwnerLabel(l))} · ${l.budget ? money(l.budget) + ' budget' : 'No budget'}<br>${l.next_follow_up ? 'Next ' + esc(l.next_follow_up) : 'No next follow-up'}</span></button>`).join('') || '<div class="meta">No leads</div>'}</div>`).join('')
                 $('pipelineMobile').innerHTML = stages.map(s => `<button class="stage-launcher" onclick="openPipelineStage('${s}')"><strong>${s}</strong><span>${groups[s].length} ${groups[s].length === 1 ? 'lead' : 'leads'} →</span></button>`).join('')
             }
+            function renderPipelineOwnerFilter() {
+                const filter = $('pipelineOwnerFilter');
+                const canManage = ['admin', 'developer'].includes(state.currentUser?.role) && state.team;
+                filter.hidden = !canManage;
+                if (!canManage) return;
+                const selected = filter.value || 'all';
+                filter.innerHTML = `<option value="all">All team</option>${(state.team.members || []).map(member => `<option value="${member.id}">${esc(memberLabel(member.email))}</option>`).join('')}`;
+                filter.value = [...filter.options].some(option => option.value === selected) ? selected : 'all';
+            }
+            function leadOwnerLabel(lead) {
+                const owner = (state.team?.members || []).find(member => String(member.id) === String(lead.assigned_user_id));
+                return owner ? memberLabel(owner.email) : 'Unassigned';
+            }
             function openPipelineStage(stage) {
-                window.currentStageLeads = state.leads.filter(l => (l.pipeline_stage || l.status || 'New') === stage);
+                const selectedOwner = $('pipelineOwnerFilter')?.value || 'all';
+                window.currentStageLeads = state.leads.filter(l => (l.pipeline_stage || l.status || 'New') === stage && (selectedOwner === 'all' || String(l.assigned_user_id || '') === selectedOwner));
                 $('stageTitle').textContent = stage;
                 $('stageSubtitle').textContent = `${window.currentStageLeads.length} ${window.currentStageLeads.length === 1 ? 'lead' : 'leads'} in this stage.`;
                 renderStageLeads();
@@ -2168,7 +2186,7 @@
                 $('teamUnassigned').textContent = (team.unassigned || []).length;
                 $('teamMembers').innerHTML = `<div class="team-row team-head"><span>Salesperson</span><span>Active leads</span><span>Assigned</span><span>Sold</span><span>Gross</span></div>` + members.map(member => `<div class="team-row"><div class="team-person"><span class="team-avatar">${memberInitials(member.email)}</span><div><strong>${esc(memberLabel(member.email))}</strong><div class="member-meta"><em class="role-chip">${esc(member.role)}</em><span class="member-email">${esc(member.email)}</span></div></div></div><div class="team-metric"><b>${Number(member.active_leads || 0)}</b><span>in progress</span></div><div class="team-metric"><b>${Number(member.assigned_leads || 0)}</b><span>total leads</span></div><div class="team-metric"><b>${Number(member.deals_sold || 0)}</b><span>this month</span></div><div class="team-metric"><b>${money(member.gross)}</b><span>this month</span></div></div>`).join('') || '<div class="empty">No active team members.</div>';
                 $('teamUnassignedList').innerHTML = (team.unassigned || []).slice(0, 6).map(lead => `<div class="team-assignment"><div><strong>${esc(lead.name)}</strong><div class="meta">${esc(lead.pipeline_stage)} · ${esc(lead.equipment || 'Equipment not specified')}</div></div><button class="mini" onclick="openAssignLead(${lead.id})">Assign</button></div>`).join('') || '<div class="empty">Every active lead has an owner.</div>';
-                $('teamActivity').innerHTML = (team.activity || []).map(item => `<button class="item" onclick="openLeadDetail(${item.lead_id})"><div class="meta"><b>${esc(item.lead_name)}</b> · ${esc(item.type)}<br>${esc(item.body || 'Updated customer record')} · ${new Date(item.created_at).toLocaleString()}</div></button>`).join('') || '<div class="empty">No team activity yet.</div>';
+                $('teamActivity').innerHTML = (team.activity || []).map(item => `<button class="item" onclick="openLeadDetail(${item.lead_id})"><div class="itemhead"><div><h3>${esc(item.lead_name)}</h3><div class="meta">${esc(item.type)} · ${esc(item.body || 'Updated customer record')}</div></div><span class="pill">By ${esc(memberLabel(item.actor_email || 'System'))}</span></div><div class="meta" style="margin-top:7px">${new Date(item.created_at).toLocaleString()}</div></button>`).join('') || '<div class="empty">No team activity yet.</div>';
             }
             function openAssignLead(leadId=null) {
                 const unassigned = state.team?.unassigned || [];

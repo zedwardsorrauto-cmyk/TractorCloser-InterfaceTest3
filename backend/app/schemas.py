@@ -75,6 +75,7 @@ class ActivityResponse(BaseModel):
     lead_id: int
     type: str
     body: str
+    actor_user_id: int | None
     created_at: datetime
 
 

@@ -48,6 +48,10 @@ def seed_initial_workspace() -> None:
     if "assigned_user_id" not in columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE leads ADD COLUMN assigned_user_id INTEGER"))
+    activity_columns = {column["name"] for column in inspect(engine).get_columns("lead_activities")}
+    if "actor_user_id" not in activity_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE lead_activities ADD COLUMN actor_user_id INTEGER"))
     db = SessionLocal()
     try:
         workspace = db.scalar(select(Workspace).where(Workspace.name == "Tractor Bob"))
@@ -146,7 +150,7 @@ def create_lead(payload: LeadCreate, user: User = Depends(get_current_user), db:
     lead = Lead(workspace_id=workspace_id, **payload.model_dump())
     db.add(lead)
     db.flush()
-    db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, type="lead created", body="Customer profile created."))
+    db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, actor_user_id=user.id, type="lead created", body="Customer profile created."))
     audit(db, user, "lead_created", lead.name, workspace_id)
     db.commit()
     db.refresh(lead)
@@ -168,7 +172,7 @@ def update_lead_pipeline(lead_id: int, payload: LeadPipelineUpdate, user: User =
     if payload.follow_up_enabled is not None:
         lead.follow_up_enabled = payload.follow_up_enabled
     if previous_stage != lead.pipeline_stage:
-        db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, type="stage changed", body=f"Moved from {previous_stage} to {lead.pipeline_stage}."))
+        db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, actor_user_id=user.id, type="stage changed", body=f"Moved from {previous_stage} to {lead.pipeline_stage}."))
     audit(db, user, "lead_stage_changed", f"{lead.name}: {previous_stage} → {lead.pipeline_stage}", lead.workspace_id)
     db.commit()
     db.refresh(lead)
@@ -186,7 +190,7 @@ def assign_lead(lead_id: int, payload: LeadAssignmentUpdate, user: User = Depend
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team member not found in this workspace")
     lead.assigned_user_id = payload.assigned_user_id
     detail = f"{lead.name} assigned" if payload.assigned_user_id else f"{lead.name} unassigned"
-    db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, type="lead assigned", body=detail))
+    db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, actor_user_id=user.id, type="lead assigned", body=detail))
     audit(db, user, "lead_assignment_changed", detail, lead.workspace_id)
     db.commit()
     db.refresh(lead)
@@ -202,7 +206,7 @@ def list_lead_activities(lead_id: int, user: User = Depends(get_current_user), d
 @app.post("/api/leads/{lead_id}/activities", response_model=ActivityResponse, status_code=status.HTTP_201_CREATED)
 def create_lead_activity(lead_id: int, payload: ActivityCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> LeadActivity:
     lead = get_workspace_lead(lead_id, user, db)
-    activity = LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, **payload.model_dump())
+    activity = LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, actor_user_id=user.id, **payload.model_dump())
     db.add(activity)
     audit(db, user, "lead_activity_added", lead.name, lead.workspace_id)
     db.commit()
@@ -241,7 +245,7 @@ def record_deal(payload: DealCreate, user: User = Depends(get_current_user), db:
         db.add(deal)
         db.flush()
     if lead:
-        db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, type="deal recorded", body=f"Sold for ${payload.sale_price:,} with ${payload.gross_profit:,} total gross."))
+        db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, actor_user_id=user.id, type="deal recorded", body=f"Sold for ${payload.sale_price:,} with ${payload.gross_profit:,} total gross."))
     audit(db, user, "deal_recorded", payload.customer, workspace_id)
     db.commit()
     db.refresh(deal)
@@ -258,7 +262,7 @@ def revert_deal(deal_id: int, user: User = Depends(get_current_user), db: Sessio
         lead = get_workspace_lead(deal.lead_id, user, db)
         lead.pipeline_stage = "Negotiating"
         lead.follow_up_enabled = True
-        db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, type="sale reverted", body="Recorded sale was reverted and the customer returned to Negotiating."))
+        db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, actor_user_id=user.id, type="sale reverted", body="Recorded sale was reverted and the customer returned to Negotiating."))
     audit(db, user, "deal_reverted", deal.customer, workspace_id)
     db.delete(deal)
     db.commit()
@@ -440,6 +444,9 @@ def team_overview(user: User = Depends(get_current_user), db: Session = Depends(
     deals = list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id)))
     activities = list(db.scalars(select(LeadActivity).where(LeadActivity.workspace_id == workspace_id).order_by(LeadActivity.created_at.desc()).limit(8)))
     lead_names = {lead.id: lead.name for lead in leads}
+    actor_ids = {item.actor_user_id for item in activities if item.actor_user_id is not None}
+    activity_users = list(db.scalars(select(User).where(User.id.in_(actor_ids)))) if actor_ids else []
+    user_names = {member.id: member.email for member in activity_users}
     month_deals = [deal for deal in deals if deal.sold_at and deal.sold_at.year == now.year and deal.sold_at.month == now.month]
     rows = []
     for member in members:
@@ -458,7 +465,7 @@ def team_overview(user: User = Depends(get_current_user), db: Session = Depends(
     return {
         "members": rows,
         "unassigned": [{"id": lead.id, "name": lead.name, "pipeline_stage": lead.pipeline_stage, "equipment": lead.equipment} for lead in leads if lead.assigned_user_id is None and lead.pipeline_stage not in {"Sold", "Lost"}],
-        "activity": [{"id": item.id, "lead_id": item.lead_id, "lead_name": lead_names.get(item.lead_id, "Customer"), "type": item.type, "body": item.body, "created_at": item.created_at} for item in activities],
+        "activity": [{"id": item.id, "lead_id": item.lead_id, "lead_name": lead_names.get(item.lead_id, "Customer"), "type": item.type, "body": item.body, "actor_email": user_names.get(item.actor_user_id, "System"), "created_at": item.created_at} for item in activities],
     }
 
 
