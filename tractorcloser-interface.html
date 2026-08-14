@@ -2643,7 +2643,62 @@
                 setProfileDirty(false);
                 $('modalBody').querySelectorAll('input, textarea, select').forEach(field => field.addEventListener('input', () => setProfileDirty(true)));
                 $('modalBody').querySelectorAll('select, input[type="checkbox"], input[type="date"]').forEach(field => field.addEventListener('change', () => setProfileDirty(true)));
+                insertConversationPanel(l);
                 loadActivities(id)
+            }
+            function insertConversationPanel(lead) {
+                const source = lead.source || 'Manual entry';
+                const inquiry = lead.original_inquiry || '';
+                const channelOptions = [];
+                if (lead.phone) {
+                    channelOptions.push('<option value="Text message">Text message</option>');
+                    channelOptions.push('<option value="Callback">Callback</option>');
+                }
+                if (lead.email) channelOptions.push('<option value="Email">Email</option>');
+                if (/meta|facebook|marketplace|instagram|social/i.test(source)) channelOptions.push('<option value="Social reply">Social reply</option>');
+                if (!channelOptions.length) channelOptions.push('<option value="Internal follow-up">Internal follow-up</option>');
+                const originalInquiry = inquiry ? `<div class="card" style="margin:14px 0"><div class="itemhead"><strong>Original inquiry</strong><span class="pill">${esc(source)}</span></div><p style="margin-bottom:0">${esc(inquiry)}</p></div>` : `<div class="meta" style="margin:12px 0">Lead source: <strong>${esc(source)}</strong></div>`;
+                const composer = `<section class="card" id="responseComposer" style="margin:14px 0"><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or log a simulated send. Nothing is sent outside TractorCloser yet.</div></div><span class="pill">Safe test mode</span></div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${channelOptions.join('')}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Mark sent</button></div></section>`;
+                const list = $('activityList');
+                list.insertAdjacentHTML('beforebegin', `${originalInquiry}${composer}<hr><h3>Customer timeline</h3>`);
+                updateComposerHint();
+            }
+            function updateComposerHint() {
+                const channel = $('composerChannel')?.value || 'Internal follow-up';
+                const label = $('composerLabel');
+                const hint = $('composerHint');
+                const body = $('composerBody');
+                if (!label || !hint || !body) return;
+                if (channel === 'Callback') {
+                    label.textContent = 'Callback outcome';
+                    body.placeholder = 'What should be covered or what happened on the call?';
+                    hint.textContent = 'This logs a callback activity only. It does not place a phone call.';
+                } else if (channel === 'Internal follow-up') {
+                    label.textContent = 'Follow-up note';
+                    body.placeholder = 'Capture the next step while contact details are still being collected…';
+                    hint.textContent = 'This lead has no reachable contact method yet. Save a follow-up note and add details later.';
+                } else {
+                    label.textContent = channel + ' draft';
+                    body.placeholder = 'Write the response you want the customer to receive…';
+                    hint.textContent = 'Save a draft or log a simulated send. Nothing is sent outside TractorCloser yet.';
+                }
+            }
+            async function saveResponseActivity(leadId, status) {
+                const channel = $('composerChannel')?.value || 'Internal follow-up';
+                const body = $('composerBody')?.value.trim() || '';
+                if (!body) return toast(channel === 'Callback' ? 'Add a callback note first' : 'Write a message first');
+                const type = channel === 'Callback' ? 'callback logged (simulated)' : `${channel.toLowerCase()} ${status} (simulated)`;
+                try {
+                    if (demoMode) {
+                        const lead = state.leads.find(x => String(x.id) === String(leadId));
+                        if (lead) addLeadActivity(lead, type, body);
+                    } else {
+                        await api('/api/leads/' + leadId + '/activities', {method: 'POST', body: JSON.stringify({type, body})});
+                    }
+                    $('composerBody').value = '';
+                    await loadActivities(leadId);
+                    toast(channel === 'Callback' ? 'Callback logged' : status === 'draft' ? 'Draft saved' : 'Simulated send recorded');
+                } catch (e) { toast(e.message) }
             }
             function addLeadActivity(lead, type, body) {
                 lead.activities = [...(lead.activities || []), {type, body, created_at: new Date().toISOString()}]
