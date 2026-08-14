@@ -1917,7 +1917,7 @@
                 if (!token)
                     { loadDemo(); showLoginScreen(); return }
                 try {
-                    const [me, leads, deals, followups, appointments, inventory, quotes] = await Promise.all([api('/api/me'), api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes')]);
+                    const [me, leads, deals, followups, appointments, inventory, quotes, metrics] = await Promise.all([api('/api/me'), api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics')]);
                     loadDemo();
                     state.leads = leads;
                     state.deals = deals;
@@ -1925,6 +1925,8 @@
                     state.appointments = appointments;
                     state.inventory = inventory;
                     state.quotes = quotes;
+                    state.metrics = metrics;
+                    state.plan.summary = {...state.plan.summary, ...metrics};
                     demoMode = false;
                     renderPipeline(); renderCRM(); renderDeals(); renderInventory();
                     applyAuthenticatedUser(me)

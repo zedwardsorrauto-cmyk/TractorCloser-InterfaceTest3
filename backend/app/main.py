@@ -1,5 +1,6 @@
 import csv
 import os
+from datetime import datetime, timezone
 from io import StringIO
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -314,6 +315,29 @@ def create_quote(payload: dict, user: User = Depends(get_current_user), db: Sess
 @app.patch("/api/quotes/{record_id}")
 def update_quote(record_id: int, payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     return update_record("quote", record_id, payload, user, db)
+
+
+@app.get("/api/metrics")
+def metrics(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    workspace_id = require_workspace(user)
+    now = datetime.now(timezone.utc)
+    leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace_id)))
+    deals = list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id)))
+    appointments = list(db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "appointment")))
+    followups = list(db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "followup")))
+    month_deals = [deal for deal in deals if deal.sold_at and deal.sold_at.year == now.year and deal.sold_at.month == now.month]
+    appointments_today = sum(1 for item in appointments if item.payload.get("status") == "Scheduled" and str(item.payload.get("starts_at", ""))[:10] == now.date().isoformat())
+    overdue_followups = sum(1 for item in followups if item.payload.get("status") == "Pending" and str(item.payload.get("due_at", ""))[:10] < now.date().isoformat())
+    return {
+        "active_leads": sum(1 for lead in leads if lead.pipeline_stage not in {"Sold", "Lost"}),
+        "month_units": len(month_deals),
+        "month_gross": sum(deal.gross_profit for deal in month_deals),
+        "month_sales_volume": sum(deal.sale_price for deal in month_deals),
+        "month_appointments": sum(1 for item in appointments if item.payload.get("status") == "Scheduled"),
+        "appointments_today": appointments_today,
+        "month_contacts": len(leads),
+        "overdue_followups": overdue_followups,
+    }
 
 
 @app.get("/api/developer/workspaces", response_model=list[WorkspaceResponse])
