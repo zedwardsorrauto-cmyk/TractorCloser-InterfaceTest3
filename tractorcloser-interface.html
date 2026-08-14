@@ -1465,6 +1465,11 @@
                 <div class="hero"><div><h1>Developer Audit</h1><p>Developer sign-ins, support access, and support-mode activity.</p></div><div class="actions"><button class="btn light" onclick="loadDeveloperAudit()">↻ Refresh</button><button class="btn brand" onclick="downloadDeveloperAudit()">↓ Download CSV</button></div></div>
                 <div class="section card"><div id="developerAuditList" class="list"><div class="empty">Loading Developer audit history…</div></div></div>
             </section>
+            <section id="page-developer-security" class="page">
+                <div class="hero"><div><h1>Developer Security</h1><p>Emergency access controls for a suspected security incident.</p></div><button class="btn light" onclick="loadSecurityCenter()">↻ Refresh</button></div>
+                <div class="section card" id="securityCenter"><div class="empty">Loading security controls…</div></div>
+                <div class="section card"><h2 style="margin-top:0">What lockdown does</h2><p class="muted">It temporarily blocks non-Developer sign-ins and revokes all active sessions. Developer accounts can still sign in to investigate and restore access.</p></div>
+            </section>
             <section id="page-inventory" class="page">
                 <div class="hero">
                     <div>
@@ -1554,6 +1559,7 @@
                 <button class="tabbtn" data-page="deals" onclick="go('deals')"><span class="app-icon">$</span>Deals</button>
                 <button id="teamNav" class="tabbtn" data-page="team" onclick="go('team')" hidden><span class="app-icon">♙</span>Team</button>
                 <button id="developerAuditNav" class="tabbtn" data-page="developer-audit" onclick="go('developer-audit')" hidden><span class="app-icon">⌁</span>Audit</button>
+                <button id="developerSecurityNav" class="tabbtn" data-page="developer-security" onclick="go('developer-security')" hidden><span class="app-icon">⚠</span>Security</button>
                 <button class="tabbtn" data-page="calculator" onclick="go('calculator')"><span class="app-icon">#</span>Calculator</button>
                 <button class="tabbtn nav-utility" onclick="toggleRailNotifications()"><span class="nav-icon app-icon round">!</span>Notifications<span class="notification-badge">3</span><span id="notificationChevron" class="notification-chevron closed">⌄</span></button>
                 <div id="railNotifications" class="rail-notifications" hidden>
@@ -1858,6 +1864,7 @@
                 loadDemo();
                 $('teamNav').hidden = true;
                 $('developerAuditNav').hidden = true;
+                $('developerSecurityNav').hidden = true;
                 $('supportBanner').hidden = true;
                 $('signInButton').hidden = false;
                 showLoginScreen();
@@ -1911,6 +1918,10 @@
                     toast('Developer Audit is available to Developer accounts only');
                     page = 'today';
                 }
+                if (page === 'developer-security' && state.currentUser?.role !== 'developer') {
+                    toast('Developer Security is available to Developer accounts only');
+                    page = 'today';
+                }
                 document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
                 $('page-' + page).classList.add('active');
                 document.querySelectorAll('.tabbtn').forEach(x => x.classList.toggle('active', x.dataset.page === page));
@@ -1931,6 +1942,8 @@
                     renderTeam();
                 if (page === 'developer-audit')
                     loadDeveloperAudit();
+                if (page === 'developer-security')
+                    loadSecurityCenter();
                 if (page === 'calculator') { renderPaymentOptions(); calculatePayment(); }
                 if (page === 'ai') {
                     renderAIQueue();
@@ -1939,7 +1952,8 @@
             function openMobileMenu(menu) {
                 const teamLink = ['admin', 'developer'].includes(state.currentUser?.role) ? `<button class="item" onclick="closeModal();go('team')"><div class="itemhead"><div><h3><span class="app-icon">♙</span>Team</h3><div class="meta">Assignments and team performance.</div></div></div></button>` : '';
                 const auditLink = state.currentUser?.role === 'developer' ? `<button class="item" onclick="closeModal();go('developer-audit')"><div class="itemhead"><div><h3><span class="app-icon">⌁</span>Developer Audit</h3><div class="meta">Support access and security history.</div></div></div></button>` : '';
-                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamLink}${auditLink}</div>`)
+                const securityLink = state.currentUser?.role === 'developer' ? `<button class="item" onclick="closeModal();go('developer-security')"><div class="itemhead"><div><h3><span class="app-icon">⚠</span>Developer Security</h3><div class="meta">Emergency lockout controls.</div></div></div></button>` : '';
+                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamLink}${auditLink}${securityLink}</div>`)
             }
             function login() {
                 showLoginScreen()
@@ -1963,6 +1977,7 @@
                 $('demoNote').textContent = 'Live customers and pipeline · remaining modules are in preview mode.';
                 $('teamNav').hidden = !['admin', 'developer'].includes(user.role);
                 $('developerAuditNav').hidden = user.role !== 'developer';
+                $('developerSecurityNav').hidden = user.role !== 'developer';
                 setSupportBanner(user.role === 'developer' && Boolean(user.workspace_id), user.workspace_name);
                 hideLoginScreen()
             }
@@ -2094,6 +2109,30 @@
                     link.click();
                     URL.revokeObjectURL(url);
                     toast('Developer audit downloaded')
+                } catch (e) { toast(e.message) }
+            }
+            async function loadSecurityCenter() {
+                if (state.currentUser?.role !== 'developer') return;
+                try {
+                    const security = await api('/api/developer/security');
+                    const locked = !security.sign_in_enabled;
+                    $('securityCenter').innerHTML = `<div class="itemhead"><div><span class="pill">${locked ? 'Lockdown active' : 'Sign-in enabled'}</span><h2 style="margin:12px 0 5px">${locked ? 'Non-Developer sign-in is disabled' : 'System access is operating normally'}</h2><div class="meta">${security.reason ? `Last security reason: ${esc(security.reason)}` : 'No emergency restriction is active.'}</div></div><div class="actions"><button class="btn ${locked ? 'brand' : 'danger'}" onclick="openSecurityAction('${locked ? 'restore' : 'lockdown'}')">${locked ? 'Restore sign-in' : 'Enable lockdown'}</button></div></div>`;
+                } catch (e) { $('securityCenter').innerHTML = `<div class="empty">${esc(e.message)}</div>` }
+            }
+            function openSecurityAction(action) {
+                const lockdown = action === 'lockdown';
+                openModal(lockdown ? 'Enable security lockdown' : 'Restore sign-in', `<p class="muted">${lockdown ? 'This signs out active users and blocks new non-Developer sign-ins. Developer accounts remain available for recovery.' : 'This restores non-Developer sign-in. Active users will still need to sign in again.'}</p><div class="field"><label>Reason for this security action</label><textarea id="securityReason" placeholder="Example: Investigating unexpected Developer access"></textarea></div><button class="btn ${lockdown ? 'danger' : 'brand'}" onclick="performSecurityAction('${action}')">${lockdown ? 'Enable lockdown' : 'Restore sign-in'}</button>`, true)
+            }
+            async function performSecurityAction(action) {
+                const reason = $('securityReason').value.trim();
+                if (!reason) return toast('Enter a reason for this security action');
+                try {
+                    const result = await api('/api/developer/security/' + action + '?reason=' + encodeURIComponent(reason), {method: 'POST'});
+                    localStorage.setItem('tractorcloser_token', result.access_token);
+                    token = result.access_token;
+                    closeModal(true);
+                    await loadSecurityCenter();
+                    toast(action === 'lockdown' ? 'Security lockdown enabled' : 'Sign-in restored')
                 } catch (e) { toast(e.message) }
             }
             function renderWin() {

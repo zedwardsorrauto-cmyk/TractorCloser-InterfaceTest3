@@ -10,7 +10,7 @@ from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import Session, joinedload
 
 from .database import Base, SessionLocal, engine, get_db
-from .models import AuditEvent, Deal, Lead, LeadActivity, Role, User, Workspace, WorkspaceRecord
+from .models import AuditEvent, Deal, Lead, LeadActivity, Role, SystemSetting, User, Workspace, WorkspaceRecord
 from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, UserResponse, WorkspaceResponse
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
@@ -53,6 +53,10 @@ def seed_initial_workspace() -> None:
     if "actor_user_id" not in activity_columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE lead_activities ADD COLUMN actor_user_id INTEGER"))
+    user_columns = {column["name"] for column in inspect(engine).get_columns("users")}
+    if "session_version" not in user_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 1"))
     db = SessionLocal()
     try:
         workspace = db.scalar(select(Workspace).where(Workspace.name == "Tractor Bob"))
@@ -110,6 +114,9 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
     user = db.scalar(select(User).options(joinedload(User.workspace)).where(User.email == str(payload.email).lower()))
     if not user or not user.active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
+    security = db.get(SystemSetting, "security")
+    if security and not security.payload.get("sign_in_enabled", True) and user.role != Role.DEVELOPER:
+        raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Sign-in is temporarily disabled by Developer security controls")
     audit(db, user, "developer_login" if user.role == Role.DEVELOPER else "login")
     db.commit()
     return LoginResponse(access_token=create_access_token(user), user=user_response(user))
@@ -503,6 +510,48 @@ def developer_audit_log(user: User = Depends(get_current_user), db: Session = De
     if user.role != Role.DEVELOPER:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Developer access required")
     return developer_audit_rows(db)
+
+
+def security_status(db: Session) -> dict:
+    setting = db.get(SystemSetting, "security")
+    return setting.payload if setting else {"sign_in_enabled": True, "updated_at": None, "reason": ""}
+
+
+@app.get("/api/developer/security")
+def get_security_status(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if user.role != Role.DEVELOPER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Developer access required")
+    return security_status(db)
+
+
+def set_security_lock(sign_in_enabled: bool, reason: str, user: User, db: Session) -> dict:
+    if user.role != Role.DEVELOPER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Developer access required")
+    if not reason.strip():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A security reason is required")
+    setting = db.get(SystemSetting, "security")
+    payload = {"sign_in_enabled": sign_in_enabled, "updated_at": datetime.now(timezone.utc).isoformat(), "reason": reason.strip(), "changed_by": user.email}
+    if setting:
+        setting.payload = payload
+    else:
+        db.add(SystemSetting(key="security", payload=payload))
+    for account in db.scalars(select(User).where(User.active.is_(True))):
+        account.session_version = int(account.session_version or 1) + 1
+    db.flush()
+    audit(db, user, "security_lockdown_restored" if sign_in_enabled else "security_lockdown_enabled", reason.strip(), getattr(user, "support_workspace_id", None))
+    db.commit()
+    db.refresh(user)
+    return {**payload, "access_token": create_access_token(user, getattr(user, "support_workspace_id", None))}
+
+
+@app.post("/api/developer/security/lockdown")
+def enable_security_lockdown(reason: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return set_security_lock(False, reason, user, db)
+
+
+@app.post("/api/developer/security/restore")
+def restore_sign_in(reason: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return set_security_lock(True, reason, user, db)
 
 
 @app.get("/api/developer/audit.csv")

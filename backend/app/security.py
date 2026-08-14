@@ -25,7 +25,7 @@ def verify_password(password: str, password_hash: str) -> bool:
 def create_access_token(user: User, support_workspace_id: int | None = None) -> str:
     settings = get_settings()
     expires = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_minutes)
-    payload = {"sub": str(user.id), "role": user.role.value, "workspace_id": user.workspace_id, "exp": expires}
+    payload = {"sub": str(user.id), "role": user.role.value, "workspace_id": user.workspace_id, "session_version": int(user.session_version or 1), "exp": expires}
     if support_workspace_id is not None:
         payload["support_workspace_id"] = support_workspace_id
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
@@ -45,4 +45,6 @@ def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(
         user = None
     if not user or not user.active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session")
+    if int(payload.get("session_version", 0)) != int(user.session_version or 1):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Your session was revoked. Please sign in again.")
     return user
