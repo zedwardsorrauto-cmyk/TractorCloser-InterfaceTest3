@@ -65,6 +65,9 @@
                 margin-top: 6px;
                 font-size: 16px
             }
+            .support-banner { display: flex; align-items: center; justify-content: space-between; gap: 14px; max-width: 1180px; margin: 0 auto; padding: 9px 22px; color: #432c75; background: #efeaff; border-bottom: 1px solid #d9cbff; font-size: 14px; font-weight: 750 }
+            .support-banner[hidden] { display: none }
+            .support-banner .mini { background: #fff; color: #432c75; padding: 7px 10px }
 
             .avatar {
                 width: 52px;
@@ -1301,6 +1304,7 @@
                 <div class="actions"><button class="mini" id="signInButton" style="background:var(--brand);color:#fff" onclick="login()">Sign in</button><button class="avatar" id="avatar" onclick="openMobileDrawer()" aria-label="Open account menu">TC</button></div>
             </div>
         </header>
+        <div id="supportBanner" class="support-banner" hidden><span id="supportBannerText">Developer Support Mode</span><button class="mini" onclick="exitSupportMode()">Exit support mode</button></div>
         <div id="drawerBackdrop" class="drawer-backdrop" onclick="closeMobileDrawer()"></div>
         <aside id="mobileDrawer" class="mobile-drawer" aria-label="Account menu">
             <div class="drawer-head"><div><h2 id="drawerName">Account</h2><div class="muted">Sales workspace</div></div><button class="mini" onclick="closeMobileDrawer()">Close</button></div>
@@ -1594,7 +1598,8 @@
                 deals: [],
                 metrics: null,
                 team: null,
-                currentUser: null
+                currentUser: null,
+                supportMode: false
             };
             let stages = JSON.parse(localStorage.getItem('tractorcloser_pipeline_stages') || 'null') || ['New', 'Contacted', 'Appointment', 'Demo', 'Quote', 'Negotiating', 'Sold', 'Lost'];
             let followupReminderHours = Number(localStorage.getItem('tractorcloser_followup_reminder_hours') || 48);
@@ -1847,6 +1852,7 @@
                 token = null;
                 loadDemo();
                 $('teamNav').hidden = true;
+                $('supportBanner').hidden = true;
                 $('signInButton').hidden = false;
                 showLoginScreen();
                 go('today');
@@ -1943,6 +1949,7 @@
                 $('demoNote').hidden = false;
                 $('demoNote').textContent = 'Live customers and pipeline · remaining modules are in preview mode.';
                 $('teamNav').hidden = !['admin', 'developer'].includes(user.role);
+                setSupportBanner(user.role === 'developer' && Boolean(user.workspace_id), user.workspace_name);
                 hideLoginScreen()
             }
             async function doLogin() {
@@ -1979,7 +1986,17 @@
                 if (!token)
                     { loadDemo(); showLoginScreen(); return }
                 try {
-                    const [me, leads, deals, followups, appointments, inventory, quotes, metrics, settings] = await Promise.all([api('/api/me'), api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics'), api('/api/settings')]);
+                    const me = await api('/api/me');
+                    if (me.role === 'developer' && !me.workspace_id) {
+                        loadDemo();
+                        state.currentUser = me;
+                        state.supportMode = false;
+                        applyAuthenticatedUser(me);
+                        const workspaces = await api('/api/developer/workspaces');
+                        openDeveloperWorkspaceChooser(workspaces);
+                        return
+                    }
+                    const [leads, deals, followups, appointments, inventory, quotes, metrics, settings] = await Promise.all([api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics'), api('/api/settings')]);
                     const team = ['admin', 'developer'].includes(me.role) ? await api('/api/team') : null;
                     loadDemo();
                     state.leads = leads;
@@ -1991,6 +2008,7 @@
                     state.metrics = metrics;
                     state.team = team;
                     state.currentUser = me;
+                    state.supportMode = me.role === 'developer' && Boolean(me.workspace_id);
                     state.plan.summary = {...state.plan.summary, ...metrics};
                     state.plan.goals = settings.goals || state.plan.goals;
                     stages = settings.stages || stages;
@@ -2006,6 +2024,37 @@
                     } else
                         toast(e.message)
                 }
+            }
+            function setSupportBanner(show, workspaceName='') {
+                $('supportBanner').hidden = !show;
+                if (show) $('supportBannerText').textContent = `Developer Support Mode · ${workspaceName || 'Selected dealership'}`;
+            }
+            function openDeveloperWorkspaceChooser(workspaces) {
+                openModal('Developer support access', `<p class="muted">Choose a dealership only when you need to diagnose or support its workspace. Your access will be visibly labeled and recorded.</p><div class="field"><label>Dealership workspace</label><select id="supportWorkspace">${workspaces.map(workspace => `<option value="${workspace.id}">${esc(workspace.name)} · ${esc(workspace.timezone)}</option>`).join('')}</select></div><div class="field"><label>Reason for access</label><textarea id="supportReason" placeholder="Example: Reproducing a reported login issue" required></textarea></div><button class="btn brand" onclick="startSupportMode()">Enter support mode</button>` , true)
+            }
+            async function startSupportMode() {
+                const reason = $('supportReason').value.trim();
+                if (!reason) return toast('Enter a brief reason for support access');
+                try {
+                    const workspaceId = $('supportWorkspace').value;
+                    const result = await api('/api/developer/workspaces/' + workspaceId + '/support-access?reason=' + encodeURIComponent(reason), {method: 'POST'});
+                    localStorage.setItem('tractorcloser_token', result.access_token);
+                    token = result.access_token;
+                    closeModal(true);
+                    await loadAll();
+                    toast('Support mode entered')
+                } catch (e) { toast(e.message) }
+            }
+            async function exitSupportMode() {
+                try {
+                    const result = await api('/api/developer/support-access/exit', {method: 'POST'});
+                    localStorage.setItem('tractorcloser_token', result.access_token);
+                    token = result.access_token;
+                    state.supportMode = false;
+                    $('supportBanner').hidden = true;
+                    await loadAll();
+                    toast('Support mode ended')
+                } catch (e) { toast(e.message) }
             }
             function renderWin() {
                 const p = state.plan;

@@ -26,13 +26,14 @@ app.add_middleware(
 
 
 def user_response(user: User) -> UserResponse:
+    workspace = getattr(user, "support_workspace", None) or user.workspace
     return UserResponse(
         id=user.id,
         email=user.email,
         role=user.role,
-        workspace_id=user.workspace_id,
-        workspace_name=user.workspace.name if user.workspace else None,
-        timezone=user.workspace.timezone if user.workspace else None,
+        workspace_id=getattr(user, "support_workspace_id", None) or user.workspace_id,
+        workspace_name=workspace.name if workspace else None,
+        timezone=workspace.timezone if workspace else None,
     )
 
 
@@ -121,9 +122,10 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)) ->
 
 
 def require_workspace(user: User) -> int:
-    if user.workspace_id is None:
+    workspace_id = getattr(user, "support_workspace_id", None) or user.workspace_id
+    if workspace_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Select a dealership workspace before accessing CRM data")
-    return user.workspace_id
+    return workspace_id
 
 
 def lead_query_for_user(user: User):
@@ -487,7 +489,24 @@ def support_access(workspace_id: int, reason: str, user: User = Depends(get_curr
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace not found")
     audit(db, user, "support_access_started", reason, workspace_id)
     db.commit()
-    return {"workspace_id": workspace.id, "workspace_name": workspace.name, "support_access": True}
+    user.support_workspace_id = workspace.id
+    user.support_workspace = workspace
+    return {"access_token": create_access_token(user, support_workspace_id=workspace.id), "user": user_response(user), "support_access": True}
+
+
+@app.post("/api/developer/support-access/exit")
+def exit_support_access(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if user.role != Role.DEVELOPER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Developer access required")
+    workspace_id = getattr(user, "support_workspace_id", None)
+    if workspace_id:
+        audit(db, user, "support_access_ended", "Developer exited support mode", workspace_id)
+        db.commit()
+    if hasattr(user, "support_workspace_id"):
+        delattr(user, "support_workspace_id")
+    if hasattr(user, "support_workspace"):
+        delattr(user, "support_workspace")
+    return {"access_token": create_access_token(user), "user": user_response(user), "support_access": False}
 
 
 @app.get("/api/admin/export/users.csv")
