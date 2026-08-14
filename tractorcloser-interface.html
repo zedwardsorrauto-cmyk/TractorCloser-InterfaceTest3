@@ -2428,7 +2428,18 @@
                 $('intakePendingCount').textContent = pending.length;
                 $('intakeLeadCount').textContent = pending.filter(item => item.classification === 'Likely new lead').length;
                 $('intakeDuplicateCount').textContent = pending.filter(item => item.classification === 'Possible existing customer').length;
-                $('intakeList').innerHTML = pending.map(item => `<div class="item"><div class="itemhead"><div><span class="pill">${esc(item.source || 'Incoming')} · ${esc(item.classification || 'Needs review')}</span><h3>${esc(item.name || 'Unidentified incoming contact')}</h3><div class="meta">${esc(item.phone || item.email || item.source_reference || 'No contact detail supplied')}<br>${esc(item.equipment || 'Interested product not yet known')}<br>${esc(item.message || 'No message content supplied')}</div></div><div class="actions"><button class="mini" onclick="openIntakeLead(${item.id})">Create lead</button><button class="mini" onclick="openIntakeAttach(${item.id})">Attach</button><button class="mini" onclick="resolveIntake(${item.id},'Not a lead')">Not a lead</button></div></div></div>`).join('') || '<div class="empty">No incoming items need review.</div>';
+                $('intakeList').innerHTML = pending.map(item => { const match = intakeMatches(item)[0]; return `<div class="item"><div class="itemhead"><div><span class="pill">${esc(item.source || 'Incoming')} · ${esc(item.classification || 'Needs review')}</span><h3>${esc(item.name || 'Unidentified incoming contact')}</h3><div class="meta">${esc(item.phone || item.email || item.source_reference || 'No contact detail supplied')}<br>${esc(item.equipment || 'Interested product not yet known')}<br>${esc(item.message || 'No message content supplied')}${match ? `<br><b>Suggested customer:</b> ${esc(match.name)}` : ''}</div></div><div class="actions"><button class="mini" onclick="openIntakeLead(${item.id})">Create lead</button><button class="mini" onclick="openIntakeAttach(${item.id})">${match ? 'Review match' : 'Attach'}</button><button class="mini" onclick="resolveIntake(${item.id},'Not a lead')">Not a lead</button></div></div></div>` }).join('') || '<div class="empty">No incoming items need review.</div>';
+            }
+            function intakeMatches(item) {
+                const normalize = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                const phone = normalize(item.phone), email = String(item.email || '').toLowerCase(), name = normalize(item.name);
+                return state.leads.map(lead => {
+                    let score = 0;
+                    if (phone && normalize(lead.phone) === phone) score += 100;
+                    if (email && String(lead.email || '').toLowerCase() === email) score += 100;
+                    if (name && normalize(lead.name) === name) score += 60;
+                    return {...lead, match_score: score}
+                }).filter(lead => lead.match_score > 0).sort((a, b) => b.match_score - a.match_score)
             }
             function openIntakeLead(id) {
                 const item = state.intake.find(entry => Number(entry.id) === Number(id));
@@ -2445,10 +2456,25 @@
                 } catch (e) { toast(e.message) }
             }
             function openIntakeAttach(id) {
-                openModal('Attach to existing customer', `<div class="field"><label>Customer</label><select id="intakeExistingLead">${state.leads.map(lead => `<option value="${lead.id}">${esc(lead.name)} · ${esc(lead.pipeline_stage)}</option>`).join('')}</select></div><button class="btn brand" onclick="attachIntakeLead(${id})">Attach to customer</button>`)
+                window.currentIntakeAttachId = id;
+                const item = state.intake.find(entry => Number(entry.id) === Number(id));
+                const suggestions = intakeMatches(item);
+                openModal('Attach to existing customer', `<p class="muted">${suggestions.length ? `Suggested match: ${esc(suggestions[0].name)}. Confirm it or search for another customer.` : 'Search for the customer instead of scrolling through every lead.'}</p><div class="field"><label>Find customer</label><input id="intakeCustomerSearch" placeholder="Search name, phone, or email" oninput="filterIntakeAttachOptions()"></div><div class="field"><label>Customer</label><select id="intakeExistingLead"></select></div><button class="btn brand" onclick="attachIntakeLead(${id})">Attach to customer</button>`);
+                renderIntakeAttachOptions('')
+            }
+            function renderIntakeAttachOptions(query='') {
+                const item = state.intake.find(entry => Number(entry.id) === Number(window.currentIntakeAttachId));
+                const normalized = query.toLowerCase();
+                const suggested = intakeMatches(item);
+                const ordered = [...suggested, ...state.leads.filter(lead => !suggested.some(match => match.id === lead.id))].filter(lead => !normalized || searchable(lead.name, lead.phone, lead.email).includes(normalized));
+                $('intakeExistingLead').innerHTML = ordered.map(lead => `<option value="${lead.id}">${lead.match_score ? 'Suggested · ' : ''}${esc(lead.name)} · ${esc(lead.pipeline_stage)}</option>`).join('') || '<option value="">No matching customer</option>';
+            }
+            function filterIntakeAttachOptions() {
+                renderIntakeAttachOptions($('intakeCustomerSearch').value)
             }
             async function attachIntakeLead(id) {
                 try {
+                    if (!$('intakeExistingLead').value) return toast('Choose a customer to attach this item to');
                     await api('/api/intake/' + id + '/attach/' + $('intakeExistingLead').value, {method: 'POST'});
                     closeModal();
                     await loadAll();
