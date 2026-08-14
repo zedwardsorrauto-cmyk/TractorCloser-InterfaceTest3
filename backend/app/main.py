@@ -1,7 +1,9 @@
 import csv
+import json
 import os
+import zipfile
 from datetime import datetime, timezone
-from io import StringIO
+from io import BytesIO, StringIO
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -567,6 +569,46 @@ def download_developer_audit(user: User = Depends(get_current_user), db: Session
     audit(db, user, "developer_audit_exported", "Developer audit CSV exported", getattr(user, "support_workspace_id", None))
     db.commit()
     return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=tractorcloser-developer-audit.csv"})
+
+
+def csv_content(headers: list[str], rows: list[list[object]]) -> str:
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    writer.writerows(rows)
+    return output.getvalue()
+
+
+@app.get("/api/admin/export/workspace.zip")
+def export_workspace_backup(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> StreamingResponse:
+    if user.role not in {Role.ADMIN, Role.DEVELOPER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    workspace_id = require_workspace(user)
+    workspace = db.get(Workspace, workspace_id)
+    leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace_id).order_by(Lead.id)))
+    deals = list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id).order_by(Deal.id)))
+    activities = list(db.scalars(select(LeadActivity).where(LeadActivity.workspace_id == workspace_id).order_by(LeadActivity.id)))
+    users = list(db.scalars(select(User).where(User.workspace_id == workspace_id).order_by(User.id)))
+    records = list(db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id).order_by(WorkspaceRecord.id)))
+    events = list(db.scalars(select(AuditEvent).where(AuditEvent.workspace_id == workspace_id).order_by(AuditEvent.id)))
+    user_emails = {record.id: record.email for record in db.scalars(select(User))}
+    lead_names = {lead.id: lead.name for lead in leads}
+    payload_keys = sorted({key for record in records for key in record.payload.keys()})
+
+    archive = BytesIO()
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
+        bundle.writestr("manifest.json", json.dumps({"workspace": workspace.name if workspace else "Workspace", "timezone": workspace.timezone if workspace else None, "exported_at": datetime.now(timezone.utc).isoformat(), "format": "TractorCloser workspace backup"}, indent=2))
+        bundle.writestr("customers.csv", csv_content(["id", "name", "phone", "email", "equipment", "budget", "pipeline_stage", "assigned_to", "follow_up_enabled", "test_data", "created_at", "updated_at"], [[lead.id, lead.name, lead.phone, lead.email, lead.equipment, lead.budget, lead.pipeline_stage, user_emails.get(lead.assigned_user_id, ""), lead.follow_up_enabled, lead.is_test_data, lead.created_at.isoformat() if lead.created_at else "", lead.updated_at.isoformat() if lead.updated_at else ""] for lead in leads]))
+        bundle.writestr("deals.csv", csv_content(["id", "customer", "lead", "equipment", "sale_price", "gross_profit", "sold_at"], [[deal.id, deal.customer, lead_names.get(deal.lead_id, ""), deal.equipment, deal.sale_price, deal.gross_profit, deal.sold_at.isoformat() if deal.sold_at else ""] for deal in deals]))
+        bundle.writestr("customer_activity.csv", csv_content(["id", "customer", "type", "detail", "performed_by", "created_at"], [[activity.id, lead_names.get(activity.lead_id, ""), activity.type, activity.body, user_emails.get(activity.actor_user_id, "System"), activity.created_at.isoformat() if activity.created_at else ""] for activity in activities]))
+        bundle.writestr("team_members.csv", csv_content(["email", "role", "active", "created_at"], [[record.email, record.role.value, record.active, record.created_at.isoformat() if record.created_at else ""] for record in users]))
+        bundle.writestr("workspace_records.csv", csv_content(["id", "record_type", *payload_keys, "created_at", "updated_at"], [[record.id, record.record_type, *[record.payload.get(key, "") for key in payload_keys], record.created_at.isoformat() if record.created_at else "", record.updated_at.isoformat() if record.updated_at else ""] for record in records]))
+        bundle.writestr("workspace_audit.csv", csv_content(["id", "event", "detail", "performed_by", "created_at"], [[event.id, event.event_type, event.detail, user_emails.get(event.actor_user_id, "System"), event.created_at.isoformat() if event.created_at else ""] for event in events]))
+    archive.seek(0)
+    audit(db, user, "workspace_backup_exported", "Workspace backup ZIP exported", workspace_id)
+    db.commit()
+    safe_name = "".join(character.lower() if character.isalnum() else "-" for character in (workspace.name if workspace else "workspace")).strip("-")
+    return StreamingResponse(archive, media_type="application/zip", headers={"Content-Disposition": f"attachment; filename=tractorcloser-{safe_name}-backup.zip"})
 
 
 @app.post("/api/developer/workspaces/{workspace_id}/support-access")

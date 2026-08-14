@@ -1448,7 +1448,7 @@
             <section id="page-team" class="page">
                 <div class="hero">
                     <div><h1>Team</h1><p>See each salesperson’s workload, results, and opportunities that still need an owner.</p></div>
-                    <button class="btn brand" onclick="openAssignLead()">+ Assign lead</button>
+                    <div class="actions"><button class="btn light" onclick="downloadWorkspaceBackup()">↓ Download backup</button><button class="btn brand" onclick="openAssignLead()">+ Assign lead</button></div>
                 </div>
                 <div class="grid grid4 section">
                     <div class="stat"><b id="teamActive">0</b><span>Active leads</span></div>
@@ -2143,6 +2143,22 @@
                     link.click();
                     URL.revokeObjectURL(url);
                     toast('Developer audit downloaded')
+                } catch (e) { toast(e.message) }
+            }
+            async function downloadWorkspaceBackup() {
+                try {
+                    const response = await fetch(API_BASE + '/api/admin/export/workspace.zip', {headers: {Authorization: 'Bearer ' + token}});
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({}));
+                        throw Error(error.detail || 'Unable to create the workspace backup');
+                    }
+                    const url = URL.createObjectURL(await response.blob());
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'tractorcloser-workspace-backup.zip';
+                    link.click();
+                    URL.revokeObjectURL(url);
+                    toast('Workspace backup downloaded')
                 } catch (e) { toast(e.message) }
             }
             async function loadSecurityCenter() {
