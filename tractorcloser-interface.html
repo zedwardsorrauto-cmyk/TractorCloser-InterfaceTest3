@@ -694,6 +694,44 @@
                 display: block
             }
 
+            .login-screen {
+                position: fixed;
+                inset: 0;
+                z-index: 1000;
+                display: grid;
+                place-items: center;
+                padding: 24px;
+                background: radial-gradient(circle at 16% 12%, #ede7ff 0, transparent 34%), radial-gradient(circle at 88% 86%, #e7f6ee 0, transparent 31%), #f7f8fa;
+            }
+            .login-screen[hidden] { display: none }
+            .login-card {
+                width: min(100%, 420px);
+                padding: 34px;
+                border: 1px solid rgba(221,227,223,.95);
+                border-radius: 28px;
+                background: rgba(255,255,255,.94);
+                box-shadow: 0 24px 70px rgba(42,31,76,.15);
+            }
+            .login-mark {
+                display: grid;
+                place-items: center;
+                width: 54px;
+                height: 54px;
+                margin-bottom: 22px;
+                border-radius: 18px;
+                background: var(--brand);
+                color: #fff;
+                font-size: 25px;
+                font-weight: 900;
+                box-shadow: 0 10px 22px rgba(79,36,170,.25);
+            }
+            .login-card h1 { margin: 0; font-size: 30px; letter-spacing: -.7px }
+            .login-card p { margin: 8px 0 24px; color: var(--muted); line-height: 1.5 }
+            .login-card .field { margin: 14px 0 }
+            .login-card .btn { width: 100%; margin-top: 8px }
+            .login-error { min-height: 20px; margin-top: 12px; color: #b42318; font-size: 14px; font-weight: 700 }
+            .login-foot { margin: 22px 0 0 !important; font-size: 13px; text-align: center }
+
             .win-banner {
                 position: fixed;
                 top: 22px;
@@ -1212,6 +1250,18 @@
     </head>
     <body>
         <div id="toast" class="toast"></div>
+        <main class="login-screen" id="loginScreen" hidden>
+            <form class="login-card" onsubmit="event.preventDefault();doLogin()">
+                <div class="login-mark">T</div>
+                <h1>Welcome back.</h1>
+                <p>Sign in to your TractorCloser sales workspace.</p>
+                <div class="field"><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="email" required></div>
+                <div class="field"><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+                <button class="btn brand" type="submit">Sign in</button>
+                <div class="login-error" id="loginError" role="alert"></div>
+                <p class="login-foot">TractorCloser secure workspace</p>
+            </form>
+        </main>
         <header class="top">
             <div class="toprow">
                 <div>
@@ -1745,6 +1795,7 @@
                 token = null;
                 loadDemo();
                 $('signInButton').hidden = false;
+                showLoginScreen();
                 go('today');
                 toast('Logged out — preview mode is active')
             }
@@ -1812,7 +1863,16 @@
                 openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button></div>`)
             }
             function login() {
-                openModal('Sign in', `<div class="field"><label>Email</label><input id="email" type="email"></div><div class="field"><label>Password</label><input id="password" type="password"></div><button class="btn brand" onclick="doLogin()">Sign in</button><p class="muted">Use your existing TractorCloser account.</p>`)
+                showLoginScreen()
+            }
+            function showLoginScreen(message='') {
+                $('loginScreen').hidden = false;
+                $('loginError').textContent = message;
+                setTimeout(() => $('loginEmail').focus(), 0)
+            }
+            function hideLoginScreen() {
+                $('loginScreen').hidden = true;
+                $('loginError').textContent = ''
             }
             function applyAuthenticatedUser(user) {
                 $('greeting').textContent = `Hi, ${user.email.split('@')[0]} — preview data is active.`;
@@ -1820,18 +1880,22 @@
                 $('drawerName').textContent = user.email;
                 $('signInButton').hidden = true;
                 $('demoNote').hidden = false;
-                $('demoNote').textContent = 'Signed in — CRM data is still in preview mode.'
+                $('demoNote').textContent = 'Signed in — CRM data is still in preview mode.';
+                hideLoginScreen()
             }
             async function doLogin() {
                 try {
+                    const email = $('loginEmail')?.value || $('email')?.value || '';
+                    const password = $('loginPassword')?.value || $('password')?.value || '';
+                    $('loginError').textContent = '';
                     const r = await fetch(API_BASE + '/api/auth/login', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            email: $('email').value,
-                            password: $('password').value
+                            email,
+                            password
                         })
                     });
                     const d = await r.json();
@@ -1844,12 +1908,12 @@
                     applyAuthenticatedUser(d.user);
                     toast('Signed in successfully')
                 } catch (e) {
-                    toast(e.message)
+                    $('loginError').textContent = e.message || 'Unable to sign in.'
                 }
             }
             async function loadAll() {
                 if (!token)
-                    return loadDemo();
+                    { loadDemo(); showLoginScreen(); return }
                 try {
                     const me = await api('/api/me');
                     loadDemo();
