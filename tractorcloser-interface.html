@@ -1341,8 +1341,8 @@
                     </div>
                     <div class="stat">
                         <b id="tUnits">0</b>
-                        <span>Available units</span>
-                        <button class="stat-link" onclick="go('inventory')">Go to inventory →</button>
+                        <span id="tUnitsLabel">Available units</span>
+                        <button id="tUnitsLink" class="stat-link" onclick="go('inventory')">Go to inventory →</button>
                     </div>
                     <div class="stat">
                         <b id="tOverdue">0</b>
@@ -1448,7 +1448,7 @@
             <section id="page-team" class="page">
                 <div class="hero">
                     <div><h1>Team</h1><p>See each salesperson’s workload, results, and opportunities that still need an owner.</p></div>
-                    <div class="actions"><button class="btn light" onclick="downloadWorkspaceBackup()">↓ Download backup</button><button class="btn brand" onclick="openAssignLead()">+ Assign lead</button></div>
+                    <div class="actions"><button id="manageAccountsButton" class="btn light" onclick="openAccountManagement()">Manage accounts</button><button class="btn light" onclick="downloadWorkspaceBackup()">↓ Download backup</button><button class="btn brand" onclick="openAssignLead()">+ Assign lead</button></div>
                 </div>
                 <div class="grid grid4 section">
                     <div class="stat"><b id="teamActive">0</b><span>Active leads</span></div>
@@ -2197,7 +2197,10 @@
                 }
                 const s = p.summary || {};
                 $('tActive').textContent = s.active_leads || 0;
-                $('tUnits').textContent = state.inventory.filter(x => x.status === 'Available').length;
+                $('tUnits').textContent = state.deals.length;
+                $('tUnitsLabel').textContent = 'Deals sold';
+                $('tUnitsLink').textContent = 'Go to deals →';
+                $('tUnitsLink').setAttribute('onclick', "go('deals')");
                 $('tOverdue').textContent = s.overdue_followups || 0;
                 $('tGross').textContent = money(s.month_gross);
                 renderGrossProgress(s.month_gross, p.goals?.gross_goal);
@@ -2354,6 +2357,7 @@
             function renderTeam() {
                 const team = state.team;
                 if (!team) return;
+                $('manageAccountsButton').hidden = state.currentUser?.role !== 'admin';
                 const members = team.members || [];
                 const active = members.reduce((sum, member) => sum + Number(member.active_leads || 0), 0);
                 const gross = members.reduce((sum, member) => sum + Number(member.gross || 0), 0);
@@ -2379,6 +2383,50 @@
                     closeModal();
                     await loadAll();
                     toast('Lead assigned')
+                } catch (e) { toast(e.message) }
+            }
+            async function openAccountManagement() {
+                try {
+                    const members = await api('/api/admin/users');
+                    const rows = members.map(member => `<div class="item"><div class="itemhead"><div><h3>${esc(memberLabel(member.email))}</h3><div class="meta">${esc(member.email)} · ${Number(member.open_leads)} open lead${Number(member.open_leads) === 1 ? '' : 's'} · ${member.active ? 'Active' : 'Deactivated'}</div></div><div class="actions">${member.role === 'salesperson' ? `<button class="mini" onclick="openPasswordReset(${member.id},'${esc(member.email)}')">Reset access</button>${member.active ? `<button class="mini" onclick="openDeactivateAccount(${member.id},'${esc(member.email)}',${Number(member.open_leads)})">Deactivate</button>` : ''}` : '<span class="pill">Admin</span>'}</div></div></div>`).join('');
+                    openModal('Manage sales accounts', `<div class="actions" style="margin-bottom:14px"><button class="btn brand" onclick="openCreateSalesperson()">+ Add salesperson</button></div><div class="list">${rows || '<div class="empty">No team accounts yet.</div>'}</div>`)
+                } catch (e) { toast(e.message) }
+            }
+            function openCreateSalesperson() {
+                openModal('Add salesperson', `<div class="field"><label>Email</label><input id="newSalesEmail" type="email" placeholder="salesperson@example.com"></div><div class="field"><label>Temporary password</label><input id="newSalesPassword" type="password" placeholder="At least 10 characters"></div><button class="btn brand" onclick="createSalesperson()">Create account</button>`)
+            }
+            async function createSalesperson() {
+                try {
+                    await api('/api/admin/users', {method: 'POST', body: JSON.stringify({email: $('newSalesEmail').value.trim(), password: $('newSalesPassword').value})});
+                    toast('Salesperson account created');
+                    await loadAll();
+                    openAccountManagement()
+                } catch (e) { toast(e.message) }
+            }
+            function openPasswordReset(id, email) {
+                openModal('Reset salesperson access', `<p class="muted">Set a new temporary password for ${esc(email)}. Their active session will be ended.</p><div class="field"><label>New temporary password</label><input id="resetSalesPassword" type="password" placeholder="At least 10 characters"></div><button class="btn brand" onclick="resetSalespersonPassword(${id})">Reset access</button>`)
+            }
+            async function resetSalespersonPassword(id) {
+                try {
+                    await api('/api/admin/users/' + id, {method: 'PATCH', body: JSON.stringify({password: $('resetSalesPassword').value})});
+                    toast('Salesperson access reset');
+                    await loadAll();
+                    openAccountManagement()
+                } catch (e) { toast(e.message) }
+            }
+            async function openDeactivateAccount(id, email, openLeads) {
+                const members = await api('/api/admin/users');
+                const recipients = members.filter(member => member.active && member.id !== id).map(member => `<option value="${member.id}">${esc(memberLabel(member.email))}</option>`).join('');
+                const reassignment = openLeads ? `<div class="field"><label>Reassign ${openLeads} open lead${openLeads === 1 ? '' : 's'} to</label><select id="deactivateRecipient">${recipients}</select></div>` : '';
+                openModal('Deactivate salesperson', `<p class="muted">${esc(email)} will no longer be able to sign in. ${openLeads ? 'Their open leads must move to an active teammate.' : 'This account has no open leads.'}</p>${reassignment}<button class="btn danger" onclick="deactivateSalesperson(${id},${openLeads})">Deactivate account</button>`, true)
+            }
+            async function deactivateSalesperson(id, openLeads) {
+                try {
+                    const recipient = openLeads ? Number($('deactivateRecipient').value) : null;
+                    await api('/api/admin/users/' + id, {method: 'PATCH', body: JSON.stringify({active: false, reassign_to_user_id: recipient})});
+                    toast('Salesperson account deactivated');
+                    await loadAll();
+                    openAccountManagement()
                 } catch (e) { toast(e.message) }
             }
             function renderInventory() {

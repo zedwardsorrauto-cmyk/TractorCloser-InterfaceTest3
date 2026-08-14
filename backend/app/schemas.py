@@ -32,6 +32,17 @@ class WorkspaceResponse(BaseModel):
     created_at: datetime
 
 
+class WorkspaceUserCreate(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class WorkspaceUserUpdate(BaseModel):
+    password: str | None = None
+    active: bool | None = None
+    reassign_to_user_id: int | None = None
+
+
 class LeadCreate(BaseModel):
     name: str
     phone: str = ""

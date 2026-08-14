@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .database import Base, SessionLocal, engine, get_db
 from .models import AuditEvent, Deal, Lead, LeadActivity, Role, SystemSetting, User, Workspace, WorkspaceRecord
-from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, UserResponse, WorkspaceResponse
+from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="TractorCloser API", version="0.1.0")
@@ -478,6 +478,72 @@ def team_overview(user: User = Depends(get_current_user), db: Session = Depends(
         "unassigned": [{"id": lead.id, "name": lead.name, "pipeline_stage": lead.pipeline_stage, "equipment": lead.equipment} for lead in leads if lead.assigned_user_id is None and lead.pipeline_stage not in {"Sold", "Lost"}],
         "activity": [{"id": item.id, "lead_id": item.lead_id, "lead_name": lead_names.get(item.lead_id, "Customer"), "type": item.type, "body": item.body, "actor_email": user_names.get(item.actor_user_id, "System"), "created_at": item.created_at} for item in activities],
     }
+
+
+def require_admin(user: User) -> int:
+    if user.role not in {Role.ADMIN, Role.DEVELOPER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return require_workspace(user)
+
+
+@app.get("/api/admin/users")
+def list_workspace_users(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    workspace_id = require_admin(user)
+    users = list(db.scalars(select(User).where(User.workspace_id == workspace_id).order_by(User.email)))
+    leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace_id)))
+    return [{"id": member.id, "email": member.email, "role": member.role.value, "active": member.active, "assigned_leads": sum(1 for lead in leads if lead.assigned_user_id == member.id), "open_leads": sum(1 for lead in leads if lead.assigned_user_id == member.id and lead.pipeline_stage not in {"Sold", "Lost"})} for member in users]
+
+
+@app.post("/api/admin/users", status_code=status.HTTP_201_CREATED)
+def create_workspace_user(payload: WorkspaceUserCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    workspace_id = require_admin(user)
+    if len(payload.password) < 10:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Use a temporary password of at least 10 characters")
+    email = str(payload.email).lower()
+    if db.scalar(select(User).where(User.email == email)):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account already exists for that email")
+    member = User(workspace_id=workspace_id, email=email, password_hash=hash_password(payload.password), role=Role.SALESPERSON)
+    db.add(member)
+    db.flush()
+    audit(db, user, "salesperson_account_created", email, workspace_id)
+    db.commit()
+    return {"id": member.id, "email": member.email, "role": member.role.value, "active": member.active}
+
+
+@app.patch("/api/admin/users/{member_id}")
+def update_workspace_user(member_id: int, payload: WorkspaceUserUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    workspace_id = require_admin(user)
+    member = db.scalar(select(User).where(User.id == member_id, User.workspace_id == workspace_id))
+    if not member:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team member not found")
+    if member.role != Role.SALESPERSON:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only salesperson accounts can be managed here")
+    if payload.password is not None:
+        if len(payload.password) < 10:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Use a temporary password of at least 10 characters")
+        member.password_hash = hash_password(payload.password)
+        member.session_version = int(member.session_version or 1) + 1
+        audit(db, user, "salesperson_password_reset", member.email, workspace_id)
+    if payload.active is not None and member.active != payload.active:
+        if not payload.active:
+            open_leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace_id, Lead.assigned_user_id == member.id, Lead.pipeline_stage.not_in({"Sold", "Lost"}))))
+            if open_leads:
+                if not payload.reassign_to_user_id:
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Reassign this salesperson’s open leads before deactivating the account")
+                recipient = db.scalar(select(User).where(User.id == payload.reassign_to_user_id, User.workspace_id == workspace_id, User.active.is_(True)))
+                if not recipient or recipient.id == member.id:
+                    raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Choose an active teammate to receive open leads")
+                for lead in open_leads:
+                    lead.assigned_user_id = recipient.id
+                audit(db, user, "salesperson_leads_reassigned", f"{member.email} → {recipient.email}", workspace_id)
+            member.active = False
+            member.session_version = int(member.session_version or 1) + 1
+            audit(db, user, "salesperson_account_deactivated", member.email, workspace_id)
+        else:
+            member.active = True
+            audit(db, user, "salesperson_account_reactivated", member.email, workspace_id)
+    db.commit()
+    return {"id": member.id, "email": member.email, "active": member.active}
 
 
 @app.get("/api/developer/workspaces", response_model=list[WorkspaceResponse])
