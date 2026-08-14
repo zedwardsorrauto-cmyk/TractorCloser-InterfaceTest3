@@ -1599,6 +1599,8 @@
             let quoteLeadId = null;
             let activeProfileId = null;
             let profileDirty = false;
+            let liveSyncTimer = null;
+            let liveSyncInFlight = false;
             let state = {
                 plan: null,
                 leads: [],
@@ -1861,6 +1863,7 @@
                 if (!confirm('Log out of TractorCloser?')) return;
                 localStorage.removeItem('tractorcloser_token');
                 token = null;
+                stopLiveSync();
                 loadDemo();
                 $('teamNav').hidden = true;
                 $('developerAuditNav').hidden = true;
@@ -2044,15 +2047,31 @@
                     followupReminderHours = Number(settings.followup_hours || followupReminderHours);
                     demoMode = false;
                     renderWin(); renderPipeline(); renderCRM(); renderDeals(); renderInventory(); renderTeam();
-                    applyAuthenticatedUser(me)
+                    applyAuthenticatedUser(me);
+                    startLiveSync()
                 } catch (e) {
                     if (/session|authentication|expired/i.test(e.message)) {
                         localStorage.removeItem('tractorcloser_token');
                         token = null;
+                        stopLiveSync();
                         login()
                     } else
                         toast(e.message)
                 }
+            }
+            function startLiveSync() {
+                clearInterval(liveSyncTimer);
+                if (!token || (state.currentUser?.role === 'developer' && !state.currentUser?.workspace_id)) return;
+                liveSyncTimer = setInterval(async () => {
+                    if (liveSyncInFlight || !token) return;
+                    liveSyncInFlight = true;
+                    try { await loadAll() } finally { liveSyncInFlight = false }
+                }, 5000)
+            }
+            function stopLiveSync() {
+                clearInterval(liveSyncTimer);
+                liveSyncTimer = null;
+                liveSyncInFlight = false
             }
             function setSupportBanner(show, workspaceName='') {
                 $('supportBanner').hidden = !show;
