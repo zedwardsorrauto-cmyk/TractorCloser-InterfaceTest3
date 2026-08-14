@@ -1218,7 +1218,7 @@
                     <div class="brand"><span class="app-icon round" style="vertical-align:2px">T</span>TractorCloser</div>
                     <div class="sub" id="greeting">Win the next deal.</div>
                 </div>
-                <button class="avatar" id="avatar" onclick="openMobileDrawer()" aria-label="Open account menu">TC</button>
+                <div class="actions"><button class="mini" id="signInButton" style="background:var(--brand);color:#fff" onclick="login()">Sign in</button><button class="avatar" id="avatar" onclick="openMobileDrawer()" aria-label="Open account menu">TC</button></div>
             </div>
         </header>
         <div id="drawerBackdrop" class="drawer-backdrop" onclick="closeMobileDrawer()"></div>
@@ -1744,6 +1744,7 @@
                 localStorage.removeItem('tractorcloser_token');
                 token = null;
                 loadDemo();
+                $('signInButton').hidden = false;
                 go('today');
                 toast('Logged out — preview mode is active')
             }
@@ -1813,6 +1814,14 @@
             function login() {
                 openModal('Sign in', `<div class="field"><label>Email</label><input id="email" type="email"></div><div class="field"><label>Password</label><input id="password" type="password"></div><button class="btn brand" onclick="doLogin()">Sign in</button><p class="muted">Use your existing TractorCloser account.</p>`)
             }
+            function applyAuthenticatedUser(user) {
+                $('greeting').textContent = `Hi, ${user.email.split('@')[0]} — preview data is active.`;
+                $('avatar').textContent = user.email.slice(0, 2).toUpperCase();
+                $('drawerName').textContent = user.email;
+                $('signInButton').hidden = true;
+                $('demoNote').hidden = false;
+                $('demoNote').textContent = 'Signed in — CRM data is still in preview mode.'
+            }
             async function doLogin() {
                 try {
                     const r = await fetch(API_BASE + '/api/auth/login', {
@@ -1832,11 +1841,7 @@
                     token = d.access_token;
                     closeModal();
                     loadDemo();
-                    $('greeting').textContent = `Hi, ${d.user.email.split('@')[0]} — preview data is active.`;
-                    $('avatar').textContent = d.user.email.slice(0, 2).toUpperCase();
-                    $('drawerName').textContent = d.user.email;
-                    $('demoNote').hidden = false;
-                    $('demoNote').textContent = 'Signed in — CRM data is still in preview mode.';
+                    applyAuthenticatedUser(d.user);
                     toast('Signed in successfully')
                 } catch (e) {
                     toast(e.message)
@@ -1846,26 +1851,9 @@
                 if (!token)
                     return loadDemo();
                 try {
-                    const [me,plan,leads,inv,fu,appts,quotes,deals,metrics] = await Promise.all([api('/api/me'), api('/api/win-today/v2'), api('/api/leads'), api('/api/inventory'), api('/api/followups'), api('/api/appointments'), api('/api/quotes'), api('/api/deals'), api('/api/metrics')]);
-                    state = {
-                        plan,
-                        leads,
-                        inventory: inv,
-                        followups: fu,
-                        appointments: appts,
-                        quotes,
-                        deals,
-                        metrics
-                    };
-                    $('greeting').textContent = `Hi, ${me.name} — win the next deal.`;
-                    $('avatar').textContent = (me.name || 'TC').split(' ').map(x => x[0]).join('').slice(0, 2).toUpperCase();
-                    $('drawerName').textContent = me.name || 'Account';
-                    renderWin();
-                    renderPipeline();
-                    renderCRM();
-                    renderInventory();
-                    renderDeals();
-                    renderAIQueue()
+                    const me = await api('/api/me');
+                    loadDemo();
+                    applyAuthenticatedUser(me)
                 } catch (e) {
                     if (/session|authentication|expired/i.test(e.message)) {
                         localStorage.removeItem('tractorcloser_token');
