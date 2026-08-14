@@ -1904,7 +1904,9 @@
                     localStorage.setItem('tractorcloser_token', d.access_token);
                     token = d.access_token;
                     closeModal();
-                    await loadAll();
+                    loadDemo();
+                    applyAuthenticatedUser(d.user);
+                    loadAll();
                     toast('Signed in successfully')
                 } catch (e) {
                     $('loginError').textContent = e.message || 'Unable to sign in.'
