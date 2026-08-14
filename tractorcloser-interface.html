@@ -2223,7 +2223,7 @@
             }
             function renderPipeline() {
                 renderPipelineOwnerFilter();
-                const selectedOwner = $('pipelineOwnerFilter').value;
+                const selectedOwner = $('pipelineOwnerFilter').value || 'all';
                 const visibleLeads = selectedOwner === 'all' ? state.leads : state.leads.filter(lead => String(lead.assigned_user_id || '') === selectedOwner);
                 const groups = {};
                 stages.forEach(s => groups[s] = []);
