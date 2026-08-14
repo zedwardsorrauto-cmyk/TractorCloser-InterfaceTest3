@@ -1477,6 +1477,7 @@
         </div>
         <script>
             let token = localStorage.getItem('tractorcloser_token');
+            const API_BASE = 'https://tractorcloser-api-pv8y.onrender.com';
             let demoMode = false;
             let calculatorMode = 'finance';
             let paymentOptions = [{label: '60 months', apr: 6.99, down: 5000}, {label: '72 months', apr: 7.49, down: 7500}];
@@ -1778,7 +1779,7 @@
                     'Content-Type': 'application/json',
                     Authorization: 'Bearer ' + token
                 };
-                const r = await fetch(path, opts);
+                const r = await fetch(API_BASE + path, opts);
                 const d = await r.json().catch( () => ({}));
                 if (!r.ok)
                     throw Error(d.error || 'Request failed');
@@ -1814,7 +1815,7 @@
             }
             async function doLogin() {
                 try {
-                    const r = await fetch('/api/auth/login', {
+                    const r = await fetch(API_BASE + '/api/auth/login', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json'
@@ -1826,11 +1827,17 @@
                     });
                     const d = await r.json();
                     if (!r.ok)
-                        throw Error(d.error);
-                    localStorage.setItem('tractorcloser_token', d.token);
-                    token = d.token;
+                        throw Error(d.detail || d.error || 'Sign-in failed');
+                    localStorage.setItem('tractorcloser_token', d.access_token);
+                    token = d.access_token;
                     closeModal();
-                    await loadAll()
+                    loadDemo();
+                    $('greeting').textContent = `Hi, ${d.user.email.split('@')[0]} — preview data is active.`;
+                    $('avatar').textContent = d.user.email.slice(0, 2).toUpperCase();
+                    $('drawerName').textContent = d.user.email;
+                    $('demoNote').hidden = false;
+                    $('demoNote').textContent = 'Signed in — CRM data is still in preview mode.';
+                    toast('Signed in successfully')
                 } catch (e) {
                     toast(e.message)
                 }
