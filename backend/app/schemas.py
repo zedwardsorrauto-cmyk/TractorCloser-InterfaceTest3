@@ -17,6 +17,7 @@ class UserResponse(BaseModel):
     workspace_id: int | None
     workspace_name: str | None
     timezone: str | None
+    must_change_password: bool
 
 
 class LoginResponse(BaseModel):
@@ -41,6 +42,10 @@ class WorkspaceUserUpdate(BaseModel):
     password: str | None = None
     active: bool | None = None
     reassign_to_user_id: int | None = None
+
+
+class PasswordSetupRequest(BaseModel):
+    password: str
 
 
 class LeadCreate(BaseModel):

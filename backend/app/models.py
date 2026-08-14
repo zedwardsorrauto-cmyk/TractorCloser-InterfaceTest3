@@ -34,6 +34,7 @@ class User(Base):
     role: Mapped[Role] = mapped_column(SqlEnum(Role), index=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     session_version: Mapped[int] = mapped_column(Integer, default=1)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     workspace: Mapped[Workspace | None] = relationship(back_populates="users")
 

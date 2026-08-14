@@ -34,7 +34,7 @@
                 font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
                 padding-bottom: 82px
             }
-            body.session-ended > *:not(#loginScreen) { visibility: hidden }
+            body.session-ended > *:not(#loginScreen):not(#passwordSetupScreen) { visibility: hidden }
 
             .top {
                 background: linear-gradient(115deg, #14211d, #243d32);
@@ -1296,6 +1296,17 @@
                 <p class="login-foot">TractorCloser secure workspace</p>
             </form>
         </main>
+        <main class="login-screen" id="passwordSetupScreen" hidden>
+            <form class="login-card" onsubmit="event.preventDefault();saveInitialPassword()">
+                <div class="login-mark">T</div>
+                <h1>Set your new password.</h1>
+                <p>Your account is ready. Choose a personal password before entering TractorCloser.</p>
+                <div class="field"><label for="newAccountPassword">New password</label><input id="newAccountPassword" type="password" autocomplete="new-password" minlength="10" required></div>
+                <div class="field"><label for="confirmAccountPassword">Confirm password</label><input id="confirmAccountPassword" type="password" autocomplete="new-password" minlength="10" required></div>
+                <button class="btn brand" type="submit">Save and continue</button>
+                <div class="login-error" id="passwordSetupError" role="alert"></div>
+            </form>
+        </main>
         <header class="top">
             <div class="toprow">
                 <div>
@@ -1448,7 +1459,7 @@
             <section id="page-team" class="page">
                 <div class="hero">
                     <div><h1>Team</h1><p>See each salesperson’s workload, results, and opportunities that still need an owner.</p></div>
-                    <div class="actions"><button id="manageAccountsButton" class="btn light" onclick="openAccountManagement()">Manage accounts</button><button class="btn light" onclick="downloadWorkspaceBackup()">↓ Download backup</button><button class="btn brand" onclick="openAssignLead()">+ Assign lead</button></div>
+                    <div class="actions"><button id="manageAccountsButton" class="btn light" onclick="openAccountManagement()">Manage accounts</button><button class="btn light" onclick="downloadWorkspaceBackup()">↓ Download backup</button></div>
                 </div>
                 <div class="grid grid4 section">
                     <div class="stat"><b id="teamActive">0</b><span>Active leads</span></div>
@@ -1964,6 +1975,7 @@
             }
             function showLoginScreen(message='') {
                 document.body.classList.add('session-ended');
+                $('passwordSetupScreen').hidden = true;
                 $('loginScreen').hidden = false;
                 $('loginError').textContent = message;
                 setTimeout(() => $('loginEmail').focus(), 0)
@@ -1972,6 +1984,17 @@
                 document.body.classList.remove('session-ended');
                 $('loginScreen').hidden = true;
                 $('loginError').textContent = ''
+            }
+            function showPasswordSetupScreen() {
+                document.body.classList.add('session-ended');
+                $('loginScreen').hidden = true;
+                $('passwordSetupScreen').hidden = false;
+                $('passwordSetupError').textContent = '';
+                setTimeout(() => $('newAccountPassword').focus(), 0)
+            }
+            function hidePasswordSetupScreen() {
+                $('passwordSetupScreen').hidden = true;
+                $('passwordSetupError').textContent = ''
             }
             function applyAuthenticatedUser(user) {
                 state.currentUser = user;
@@ -2009,6 +2032,10 @@
                     token = d.access_token;
                     demoMode = false;
                     closeModal();
+                    if (d.user.must_change_password) {
+                        showPasswordSetupScreen();
+                        return
+                    }
                     loadDemo();
                     applyAuthenticatedUser(d.user);
                     loadAll();
@@ -2022,6 +2049,11 @@
                     { loadDemo(); showLoginScreen(); return }
                 try {
                     const me = await api('/api/me');
+                    if (me.must_change_password) {
+                        state.currentUser = me;
+                        showPasswordSetupScreen();
+                        return
+                    }
                     if (me.role === 'developer' && !me.workspace_id) {
                         loadDemo();
                         state.currentUser = me;
@@ -2085,8 +2117,26 @@
                 $('developerAuditNav').hidden = true;
                 $('developerSecurityNav').hidden = true;
                 $('supportBanner').hidden = true;
+                hidePasswordSetupScreen();
                 $('signInButton').hidden = false;
                 showLoginScreen(message)
+            }
+            async function saveInitialPassword() {
+                const password = $('newAccountPassword').value;
+                if (password !== $('confirmAccountPassword').value) {
+                    $('passwordSetupError').textContent = 'Passwords do not match.';
+                    return
+                }
+                try {
+                    const result = await api('/api/auth/set-password', {method: 'POST', body: JSON.stringify({password})});
+                    localStorage.setItem('tractorcloser_token', result.access_token);
+                    token = result.access_token;
+                    hidePasswordSetupScreen();
+                    loadDemo();
+                    applyAuthenticatedUser(result.user);
+                    await loadAll();
+                    toast('Password saved')
+                } catch (e) { $('passwordSetupError').textContent = e.message || 'Unable to save your password.' }
             }
             function setSupportBanner(show, workspaceName='') {
                 $('supportBanner').hidden = !show;

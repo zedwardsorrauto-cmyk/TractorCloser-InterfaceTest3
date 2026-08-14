@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .database import Base, SessionLocal, engine, get_db
 from .models import AuditEvent, Deal, Lead, LeadActivity, Role, SystemSetting, User, Workspace, WorkspaceRecord
-from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
+from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, PasswordSetupRequest, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="TractorCloser API", version="0.1.0")
@@ -36,6 +36,7 @@ def user_response(user: User) -> UserResponse:
         workspace_id=getattr(user, "support_workspace_id", None) or user.workspace_id,
         workspace_name=workspace.name if workspace else None,
         timezone=workspace.timezone if workspace else None,
+        must_change_password=user.must_change_password,
     )
 
 
@@ -59,6 +60,9 @@ def seed_initial_workspace() -> None:
     if "session_version" not in user_columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 1"))
+    if "must_change_password" not in user_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"))
     db = SessionLocal()
     try:
         workspace = db.scalar(select(Workspace).where(Workspace.name == "Tractor Bob"))
@@ -131,10 +135,25 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)) ->
 
 
 def require_workspace(user: User) -> int:
+    if user.must_change_password:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Set your new password before accessing the workspace")
     workspace_id = getattr(user, "support_workspace_id", None) or user.workspace_id
     if workspace_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Select a dealership workspace before accessing CRM data")
     return workspace_id
+
+
+@app.post("/api/auth/set-password", response_model=LoginResponse)
+def set_initial_password(payload: PasswordSetupRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> LoginResponse:
+    if len(payload.password) < 10:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Use a password of at least 10 characters")
+    user.password_hash = hash_password(payload.password)
+    user.must_change_password = False
+    user.session_version = int(user.session_version or 1) + 1
+    audit(db, user, "password_setup_completed", user.email, user.workspace_id)
+    db.commit()
+    db.refresh(user)
+    return LoginResponse(access_token=create_access_token(user), user=user_response(user))
 
 
 def lead_query_for_user(user: User):
@@ -502,7 +521,7 @@ def create_workspace_user(payload: WorkspaceUserCreate, user: User = Depends(get
     email = str(payload.email).lower()
     if db.scalar(select(User).where(User.email == email)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account already exists for that email")
-    member = User(workspace_id=workspace_id, email=email, password_hash=hash_password(payload.password), role=Role.SALESPERSON)
+    member = User(workspace_id=workspace_id, email=email, password_hash=hash_password(payload.password), role=Role.SALESPERSON, must_change_password=True)
     db.add(member)
     db.flush()
     audit(db, user, "salesperson_account_created", email, workspace_id)
@@ -522,6 +541,7 @@ def update_workspace_user(member_id: int, payload: WorkspaceUserUpdate, user: Us
         if len(payload.password) < 10:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Use a temporary password of at least 10 characters")
         member.password_hash = hash_password(payload.password)
+        member.must_change_password = True
         member.session_version = int(member.session_version or 1) + 1
         audit(db, user, "salesperson_password_reset", member.email, workspace_id)
     if payload.active is not None and member.active != payload.active:
