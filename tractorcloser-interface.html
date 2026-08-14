@@ -34,6 +34,7 @@
                 font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
                 padding-bottom: 82px
             }
+            body.session-ended > *:not(#loginScreen) { visibility: hidden }
 
             .top {
                 background: linear-gradient(115deg, #14211d, #243d32);
@@ -1962,11 +1963,13 @@
                 showLoginScreen()
             }
             function showLoginScreen(message='') {
+                document.body.classList.add('session-ended');
                 $('loginScreen').hidden = false;
                 $('loginError').textContent = message;
                 setTimeout(() => $('loginEmail').focus(), 0)
             }
             function hideLoginScreen() {
+                document.body.classList.remove('session-ended');
                 $('loginScreen').hidden = true;
                 $('loginError').textContent = ''
             }
@@ -2051,10 +2054,7 @@
                     startLiveSync()
                 } catch (e) {
                     if (/session|authentication|expired/i.test(e.message)) {
-                        localStorage.removeItem('tractorcloser_token');
-                        token = null;
-                        stopLiveSync();
-                        login()
+                        forceSessionLogout('Your session was ended by security controls. Please sign in again.')
                     } else
                         toast(e.message)
                 }
@@ -2072,6 +2072,21 @@
                 clearInterval(liveSyncTimer);
                 liveSyncTimer = null;
                 liveSyncInFlight = false
+            }
+            function forceSessionLogout(message) {
+                localStorage.removeItem('tractorcloser_token');
+                token = null;
+                stopLiveSync();
+                state = {plan: null, leads: [], inventory: [], followups: [], appointments: [], quotes: [], deals: [], metrics: null, team: null, currentUser: null, supportMode: false};
+                activeProfileId = null;
+                profileDirty = false;
+                closeModal(true);
+                $('teamNav').hidden = true;
+                $('developerAuditNav').hidden = true;
+                $('developerSecurityNav').hidden = true;
+                $('supportBanner').hidden = true;
+                $('signInButton').hidden = false;
+                showLoginScreen(message)
             }
             function setSupportBanner(show, workspaceName='') {
                 $('supportBanner').hidden = !show;
