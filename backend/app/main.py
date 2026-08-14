@@ -317,6 +317,23 @@ def update_quote(record_id: int, payload: dict, user: User = Depends(get_current
     return update_record("quote", record_id, payload, user, db)
 
 
+@app.get("/api/settings")
+def get_settings_record(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    workspace_id = require_workspace(user)
+    record = db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "settings"))
+    return record.payload if record else {"stages": ["New", "Contacted", "Appointment", "Demo", "Quote", "Negotiating", "Sold", "Lost"], "followup_hours": 48, "goals": {"units_goal": 10, "gross_goal": 50000, "appointments_goal": 20, "contacts_goal": 100}}
+
+
+@app.put("/api/settings")
+def put_settings_record(payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if user.role not in {Role.ADMIN, Role.DEVELOPER}: raise HTTPException(status_code=403, detail="Admin access required")
+    workspace_id = require_workspace(user)
+    record = db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "settings"))
+    if record: record.payload = {**record.payload, **payload}
+    else: record = WorkspaceRecord(workspace_id=workspace_id, record_type="settings", payload=payload); db.add(record)
+    db.commit(); return record.payload
+
+
 @app.get("/api/metrics")
 def metrics(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     workspace_id = require_workspace(user)

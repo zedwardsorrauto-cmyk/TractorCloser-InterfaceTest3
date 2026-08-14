@@ -1917,7 +1917,7 @@
                 if (!token)
                     { loadDemo(); showLoginScreen(); return }
                 try {
-                    const [me, leads, deals, followups, appointments, inventory, quotes, metrics] = await Promise.all([api('/api/me'), api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics')]);
+                    const [me, leads, deals, followups, appointments, inventory, quotes, metrics, settings] = await Promise.all([api('/api/me'), api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics'), api('/api/settings')]);
                     loadDemo();
                     state.leads = leads;
                     state.deals = deals;
@@ -1927,6 +1927,9 @@
                     state.quotes = quotes;
                     state.metrics = metrics;
                     state.plan.summary = {...state.plan.summary, ...metrics};
+                    state.plan.goals = settings.goals || state.plan.goals;
+                    stages = settings.stages || stages;
+                    followupReminderHours = Number(settings.followup_hours || followupReminderHours);
                     demoMode = false;
                     renderWin(); renderPipeline(); renderCRM(); renderDeals(); renderInventory();
                     applyAuthenticatedUser(me)
@@ -2044,7 +2047,7 @@
                 pipelineSettingsDraft.push('New stage');
                 renderPipelineStageEditor()
             }
-            function savePipelineSettings() {
+            async function savePipelineSettings() {
                 const nextStages = readPipelineStageEditor();
                 if (nextStages.length < 2) return toast('Keep at least two pipeline stages');
                 if (new Set(nextStages.map(x => x.toLowerCase())).size !== nextStages.length) return toast('Stage names must be unique');
@@ -2052,6 +2055,7 @@
                 followupReminderHours = Number($('followupReminder').value);
                 localStorage.setItem('tractorcloser_pipeline_stages', JSON.stringify(stages));
                 localStorage.setItem('tractorcloser_followup_reminder_hours', String(followupReminderHours));
+                if (!demoMode) await api('/api/settings', {method: 'PUT', body: JSON.stringify({stages, followup_hours: followupReminderHours})});
                 closeModal();
                 renderPipeline();
                 toast('Pipeline settings saved')
@@ -2101,15 +2105,9 @@
             }
             async function saveGoals() {
                 try {
-                    await api('/api/win-today/goals', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            units_goal: $('gUnits').value,
-                            gross_goal: $('gGross').value,
-                            appointments_goal: $('gAppts').value,
-                            contacts_goal: $('gContacts').value
-                        })
-                    });
+                    const goals = {units_goal: Number($('gUnits').value), gross_goal: Number($('gGross').value), appointments_goal: Number($('gAppts').value), contacts_goal: Number($('gContacts').value)};
+                    if (!demoMode) await api('/api/settings', {method: 'PUT', body: JSON.stringify({goals})});
+                    else state.plan.goals = goals;
                     closeModal();
                     await loadAll();
                     toast('Goals saved')
