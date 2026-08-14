@@ -78,6 +78,13 @@ def seed_initial_workspace() -> None:
                 ("Blake Thompson (Test)", "555-0157", "blake.test@example.com", "48-inch rotary cutter", 4200, "Quote"),
             ]
             db.add_all([Lead(workspace_id=workspace.id, name=name, phone=phone, email=email, equipment=equipment, budget=budget, pipeline_stage=stage, is_test_data=True) for name, phone, email, equipment, budget, stage in demo_leads])
+        # Give the test salesperson a small, stable starting workload while
+        # preserving unassigned demo leads for the Admin assignment workflow.
+        salesperson = db.scalar(select(User).where(User.email == "zedwards.orrauto@gmail.com", User.workspace_id == workspace.id))
+        if salesperson and not db.scalar(select(Lead).where(Lead.workspace_id == workspace.id, Lead.assigned_user_id == salesperson.id)):
+            starter_leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace.id, Lead.is_test_data.is_(True)).order_by(Lead.id).limit(3)))
+            for lead in starter_leads:
+                lead.assigned_user_id = salesperson.id
         db.commit()
     finally:
         db.close()
@@ -115,15 +122,23 @@ def require_workspace(user: User) -> int:
     return user.workspace_id
 
 
+def lead_query_for_user(user: User):
+    statement = select(Lead).where(Lead.workspace_id == require_workspace(user))
+    if user.role == Role.SALESPERSON:
+        statement = statement.where(Lead.assigned_user_id == user.id)
+    return statement
+
+
 @app.get("/api/leads", response_model=list[LeadResponse])
 def list_leads(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Lead]:
-    workspace_id = require_workspace(user)
-    return list(db.scalars(select(Lead).where(Lead.workspace_id == workspace_id).order_by(Lead.created_at.desc())))
+    return list(db.scalars(lead_query_for_user(user).order_by(Lead.created_at.desc())))
 
 
 @app.post("/api/leads", response_model=LeadResponse, status_code=status.HTTP_201_CREATED)
 def create_lead(payload: LeadCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Lead:
     workspace_id = require_workspace(user)
+    if user.role == Role.SALESPERSON:
+        payload.assigned_user_id = user.id
     if payload.assigned_user_id is not None:
         assignee = db.scalar(select(User).where(User.id == payload.assigned_user_id, User.workspace_id == workspace_id, User.active.is_(True)))
         if not assignee:
@@ -139,7 +154,7 @@ def create_lead(payload: LeadCreate, user: User = Depends(get_current_user), db:
 
 
 def get_workspace_lead(lead_id: int, user: User, db: Session) -> Lead:
-    lead = db.scalar(select(Lead).where(Lead.id == lead_id, Lead.workspace_id == require_workspace(user)))
+    lead = db.scalar(lead_query_for_user(user).where(Lead.id == lead_id))
     if not lead:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
     return lead
@@ -198,7 +213,11 @@ def create_lead_activity(lead_id: int, payload: ActivityCreate, user: User = Dep
 @app.get("/api/deals", response_model=list[DealResponse])
 def list_deals(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Deal]:
     workspace_id = require_workspace(user)
-    return list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id).order_by(Deal.sold_at.desc())))
+    statement = select(Deal).where(Deal.workspace_id == workspace_id)
+    if user.role == Role.SALESPERSON:
+        assigned_ids = select(Lead.id).where(Lead.workspace_id == workspace_id, Lead.assigned_user_id == user.id)
+        statement = statement.where(Deal.lead_id.in_(assigned_ids))
+    return list(db.scalars(statement.order_by(Deal.sold_at.desc())))
 
 
 @app.post("/api/deals", response_model=DealResponse, status_code=status.HTTP_201_CREATED)
@@ -249,11 +268,25 @@ def revert_deal(deal_id: int, user: User = Depends(get_current_user), db: Sessio
 def list_records(record_type: str, user: User, db: Session) -> list[dict]:
     workspace_id = require_workspace(user)
     records = db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == record_type).order_by(WorkspaceRecord.created_at.desc()))
-    return [{"id": item.id, **item.payload} for item in records]
+    result = []
+    for item in records:
+        lead_id = item.payload.get("lead_id")
+        if user.role == Role.SALESPERSON:
+            if not lead_id:
+                continue
+            if not db.scalar(select(Lead.id).where(Lead.id == int(lead_id), Lead.workspace_id == workspace_id, Lead.assigned_user_id == user.id)):
+                continue
+        result.append({"id": item.id, **item.payload})
+    return result
 
 
 def create_record(record_type: str, payload: dict, user: User, db: Session) -> dict:
     workspace_id = require_workspace(user)
+    if user.role == Role.SALESPERSON and record_type in {"followup", "appointment", "quote"}:
+        lead_id = payload.get("lead_id")
+        if not lead_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Choose one of your assigned customers")
+        get_workspace_lead(int(lead_id), user, db)
     record = WorkspaceRecord(workspace_id=workspace_id, record_type=record_type, payload=payload)
     db.add(record)
     db.flush()
@@ -267,6 +300,11 @@ def update_record(record_type: str, record_id: int, payload: dict, user: User, d
     record = db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.id == record_id, WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == record_type))
     if not record:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Record not found")
+    if user.role == Role.SALESPERSON and record_type in {"followup", "appointment", "quote"}:
+        lead_id = payload.get("lead_id", record.payload.get("lead_id"))
+        if not lead_id:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This customer record is not assigned to you")
+        get_workspace_lead(int(lead_id), user, db)
     record.payload = {**record.payload, **payload}
     audit(db, user, f"{record_type}_updated", "", workspace_id)
     db.commit()
@@ -366,11 +404,17 @@ def put_settings_record(payload: dict, user: User = Depends(get_current_user), d
 def metrics(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     workspace_id = require_workspace(user)
     now = datetime.now(timezone.utc)
-    leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace_id)))
+    leads = list(db.scalars(lead_query_for_user(user)))
+    lead_ids = {lead.id for lead in leads}
     deals = list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id)))
+    if user.role == Role.SALESPERSON:
+        deals = [deal for deal in deals if deal.lead_id in lead_ids]
     appointments = list(db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "appointment")))
     followups = list(db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "followup")))
     month_deals = [deal for deal in deals if deal.sold_at and deal.sold_at.year == now.year and deal.sold_at.month == now.month]
+    if user.role == Role.SALESPERSON:
+        appointments = [item for item in appointments if str(item.payload.get("lead_id")) in {str(lead_id) for lead_id in lead_ids}]
+        followups = [item for item in followups if str(item.payload.get("lead_id")) in {str(lead_id) for lead_id in lead_ids}]
     appointments_today = sum(1 for item in appointments if item.payload.get("status") == "Scheduled" and str(item.payload.get("starts_at", ""))[:10] == now.date().isoformat())
     overdue_followups = sum(1 for item in followups if item.payload.get("status") == "Pending" and str(item.payload.get("due_at", ""))[:10] < now.date().isoformat())
     return {

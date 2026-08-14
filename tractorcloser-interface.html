@@ -199,15 +199,16 @@
             .team-row.team-head { padding-top: 2px; color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .06em }
             .team-person { display: flex; gap: 10px; align-items: center; min-width: 0 }
             .team-avatar { width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center; background: #ece7fb; color: var(--brand); font-size: 12px; font-weight: 900 }
-            .team-person strong,.team-person span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-            .team-person span { color: var(--muted); font-size: 12px; margin-top: 2px }
+            .team-person strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+            .member-meta { display: flex; align-items: center; gap: 7px; min-width: 0; margin-top: 4px }
+            .member-email { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px }
             .team-metric b { display: block; font-size: 17px }
             .team-metric span { color: var(--muted); font-size: 12px }
             .team-assignment { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line) }
             .team-assignment:last-child { border-bottom: 0 }
             .team-activity { display: grid; gap: 11px }
             .team-activity .meta b { color: var(--ink) }
-            .role-chip { color: #4b327f; background: #efeaff; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 850; text-transform: capitalize }
+            .role-chip { flex: 0 0 auto; color: #4b327f; background: #efeaff; border: 1px solid #ded4fb; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-style: normal; font-weight: 850; line-height: 1; text-transform: capitalize }
 
             .stat-link {
                 display: block;
@@ -2164,7 +2165,7 @@
                 $('teamGross').textContent = money(gross);
                 $('teamSold').textContent = sold;
                 $('teamUnassigned').textContent = (team.unassigned || []).length;
-                $('teamMembers').innerHTML = `<div class="team-row team-head"><span>Salesperson</span><span>Active leads</span><span>Assigned</span><span>Sold</span><span>Gross</span></div>` + members.map(member => `<div class="team-row"><div class="team-person"><span class="team-avatar">${memberInitials(member.email)}</span><div><strong>${esc(memberLabel(member.email))}</strong><span>${esc(member.email)} <em class="role-chip">${esc(member.role)}</em></span></div></div><div class="team-metric"><b>${Number(member.active_leads || 0)}</b><span>in progress</span></div><div class="team-metric"><b>${Number(member.assigned_leads || 0)}</b><span>total leads</span></div><div class="team-metric"><b>${Number(member.deals_sold || 0)}</b><span>this month</span></div><div class="team-metric"><b>${money(member.gross)}</b><span>this month</span></div></div>`).join('') || '<div class="empty">No active team members.</div>';
+                $('teamMembers').innerHTML = `<div class="team-row team-head"><span>Salesperson</span><span>Active leads</span><span>Assigned</span><span>Sold</span><span>Gross</span></div>` + members.map(member => `<div class="team-row"><div class="team-person"><span class="team-avatar">${memberInitials(member.email)}</span><div><strong>${esc(memberLabel(member.email))}</strong><div class="member-meta"><span class="member-email">${esc(member.email)}</span><em class="role-chip">${esc(member.role)}</em></div></div></div><div class="team-metric"><b>${Number(member.active_leads || 0)}</b><span>in progress</span></div><div class="team-metric"><b>${Number(member.assigned_leads || 0)}</b><span>total leads</span></div><div class="team-metric"><b>${Number(member.deals_sold || 0)}</b><span>this month</span></div><div class="team-metric"><b>${money(member.gross)}</b><span>this month</span></div></div>`).join('') || '<div class="empty">No active team members.</div>';
                 $('teamUnassignedList').innerHTML = (team.unassigned || []).slice(0, 6).map(lead => `<div class="team-assignment"><div><strong>${esc(lead.name)}</strong><div class="meta">${esc(lead.pipeline_stage)} · ${esc(lead.equipment || 'Equipment not specified')}</div></div><button class="mini" onclick="openAssignLead(${lead.id})">Assign</button></div>`).join('') || '<div class="empty">Every active lead has an owner.</div>';
                 $('teamActivity').innerHTML = (team.activity || []).map(item => `<button class="item" onclick="openLeadDetail(${item.lead_id})"><div class="meta"><b>${esc(item.lead_name)}</b> · ${esc(item.type)}<br>${esc(item.body || 'Updated customer record')} · ${new Date(item.created_at).toLocaleString()}</div></button>`).join('') || '<div class="empty">No team activity yet.</div>';
             }
