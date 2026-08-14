@@ -105,6 +105,35 @@ def seed_initial_workspace() -> None:
             starter_leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace.id, Lead.is_test_data.is_(True)).order_by(Lead.id).limit(3)))
             for lead in starter_leads:
                 lead.assigned_user_id = salesperson.id
+        # Add a focused set of safe composer test records once, without touching
+        # any customer records the team has already created during testing.
+        composer_test_reference = "Composer interface test set"
+        if not db.scalar(select(Lead).where(Lead.workspace_id == workspace.id, Lead.source_reference == composer_test_reference)):
+            composer_leads = [
+                ("Avery Collins (Test)", "555-0241", "", "2025 Yanmar SA325", 28500, "New", "Website", "I need a compact tractor for five acres. Can someone text me pricing today?"),
+                ("Emery Price (Test)", "", "emery.price.test@example.com", "Yanmar YM347", 41500, "Contacted", "Website", "Please send package details and financing information by email."),
+                ("Noah Bennett (Test)", "555-0243", "", "Yanmar UTV", 21800, "New", "Facebook Marketplace", "Is the UTV still available? I would like to message about a trade."),
+                ("Quinn Harper (Test)", "555-0244", "", "", 0, "New", "Missed call", "Missed call from the business line. No voicemail was left."),
+                ("Unknown walk-in (Test)", "", "", "", 0, "New", "In-person", "Stopped by asking about compact tractor options; no contact details collected yet."),
+            ]
+            for name, phone, email, equipment, budget, stage, source, inquiry in composer_leads:
+                lead = Lead(
+                    workspace_id=workspace.id,
+                    assigned_user_id=salesperson.id if salesperson else None,
+                    name=name,
+                    phone=phone,
+                    email=email,
+                    equipment=equipment,
+                    budget=budget,
+                    pipeline_stage=stage,
+                    source=source,
+                    source_reference=composer_test_reference,
+                    original_inquiry=inquiry,
+                    is_test_data=True,
+                )
+                db.add(lead)
+                db.flush()
+                db.add(LeadActivity(workspace_id=workspace.id, lead_id=lead.id, type="incoming inquiry", body=inquiry))
         if not db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace.id, WorkspaceRecord.record_type == "intake")):
             intake_samples = [
                 {"name": "", "phone": "555-0201", "email": "", "source": "Missed call", "source_reference": "Business line", "message": "Missed call at 10:42 AM. No voicemail.", "equipment": "", "classification": "Needs review", "confidence": "Low", "status": "Pending"},
