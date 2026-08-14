@@ -63,6 +63,11 @@ def seed_initial_workspace() -> None:
     if "must_change_password" not in user_columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"))
+    lead_columns = {column["name"] for column in inspect(engine).get_columns("leads")}
+    for column_name, definition in {"source": "VARCHAR(100) DEFAULT 'Manual'", "source_reference": "VARCHAR(240) DEFAULT ''", "original_inquiry": "TEXT DEFAULT ''"}.items():
+        if column_name not in lead_columns:
+            with engine.begin() as connection:
+                connection.execute(text(f"ALTER TABLE leads ADD COLUMN {column_name} {definition}"))
     db = SessionLocal()
     try:
         workspace = db.scalar(select(Workspace).where(Workspace.name == "Tractor Bob"))
@@ -100,6 +105,14 @@ def seed_initial_workspace() -> None:
             starter_leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace.id, Lead.is_test_data.is_(True)).order_by(Lead.id).limit(3)))
             for lead in starter_leads:
                 lead.assigned_user_id = salesperson.id
+        if not db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace.id, WorkspaceRecord.record_type == "intake")):
+            intake_samples = [
+                {"name": "", "phone": "555-0201", "email": "", "source": "Missed call", "source_reference": "Business line", "message": "Missed call at 10:42 AM. No voicemail.", "equipment": "", "classification": "Needs review", "confidence": "Low", "status": "Pending"},
+                {"name": "Jamie Reed", "phone": "", "email": "jamie.reed@example.com", "source": "Website", "source_reference": "Request information form", "message": "Looking for a compact tractor with a loader for 12 acres. Please email pricing.", "equipment": "Compact tractor with loader", "classification": "Likely new lead", "confidence": "High", "status": "Pending"},
+                {"name": "Jordan Miller", "phone": "555-0142", "email": "", "source": "Marketplace", "source_reference": "Yanmar YM347 listing", "message": "Is this still available? What would payments look like?", "equipment": "2025 Yanmar YM347", "classification": "Possible existing customer", "confidence": "Medium", "status": "Pending"},
+                {"name": "Parts Department", "phone": "", "email": "parts@tractorbob.com", "source": "Business email", "source_reference": "Shared inbox", "message": "Can you send the updated internal parts schedule?", "equipment": "", "classification": "Likely non-sales", "confidence": "High", "status": "Pending"},
+            ]
+            db.add_all([WorkspaceRecord(workspace_id=workspace.id, record_type="intake", payload=sample) for sample in intake_samples])
         db.commit()
     finally:
         db.close()
@@ -341,6 +354,58 @@ def update_record(record_type: str, record_id: int, payload: dict, user: User, d
         get_workspace_lead(int(lead_id), user, db)
     record.payload = {**record.payload, **payload}
     audit(db, user, f"{record_type}_updated", "", workspace_id)
+    db.commit()
+    return {"id": record.id, **record.payload}
+
+
+def get_intake_record(record_id: int, user: User, db: Session) -> WorkspaceRecord:
+    workspace_id = require_admin(user)
+    record = db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.id == record_id, WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "intake"))
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Intake item not found")
+    return record
+
+
+@app.get("/api/intake")
+def get_intake(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    require_admin(user)
+    return list_records("intake", user, db)
+
+
+@app.patch("/api/intake/{record_id}")
+def update_intake(record_id: int, payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    get_intake_record(record_id, user, db)
+    return update_record("intake", record_id, payload, user, db)
+
+
+@app.post("/api/intake/{record_id}/create-lead", response_model=LeadResponse)
+def intake_to_lead(record_id: int, payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Lead:
+    record = get_intake_record(record_id, user, db)
+    workspace_id = require_workspace(user)
+    data = record.payload
+    name = str(payload.get("name") or data.get("name") or f"New {data.get('source', 'inquiry')} inquiry").strip()
+    lead = Lead(workspace_id=workspace_id, name=name, phone=str(data.get("phone", "")), email=str(data.get("email", "")), equipment=str(data.get("equipment", "")), source=str(data.get("source", "Manual")), source_reference=str(data.get("source_reference", "")), original_inquiry=str(data.get("message", "")), assigned_user_id=payload.get("assigned_user_id"), is_test_data=True)
+    if lead.assigned_user_id is not None:
+        assignee = db.scalar(select(User).where(User.id == lead.assigned_user_id, User.workspace_id == workspace_id, User.active.is_(True)))
+        if not assignee:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Choose an active teammate")
+    db.add(lead)
+    db.flush()
+    db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, actor_user_id=user.id, type="lead accepted from intake", body=f"Accepted from {lead.source}. {lead.original_inquiry}"))
+    record.payload = {**record.payload, "status": "Created lead", "lead_id": lead.id}
+    audit(db, user, "intake_lead_created", lead.name, workspace_id)
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+@app.post("/api/intake/{record_id}/attach/{lead_id}")
+def attach_intake_to_lead(record_id: int, lead_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    record = get_intake_record(record_id, user, db)
+    lead = get_workspace_lead(lead_id, user, db)
+    record.payload = {**record.payload, "status": "Attached to existing", "lead_id": lead.id}
+    db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, actor_user_id=user.id, type="intake attached", body=f"{record.payload.get('source', 'Incoming')} inquiry attached: {record.payload.get('message', '')}"))
+    audit(db, user, "intake_attached_to_lead", lead.name, lead.workspace_id)
     db.commit()
     return {"id": record.id, **record.payload}
 

@@ -1456,6 +1456,11 @@
                 </div>
                 <div class="section card"><div id="crmViewContent" class="list"></div></div>
             </section>
+            <section id="page-intake" class="page">
+                <div class="hero"><div><h1>Lead Intake</h1><p>Review incoming opportunities before they become customer records.</p></div><button class="btn light" onclick="loadIntake()">↻ Refresh</button></div>
+                <div class="grid grid3 section"><div class="stat"><b id="intakePendingCount">0</b><span>Needs review</span></div><div class="stat"><b id="intakeLeadCount">0</b><span>Likely new leads</span></div><div class="stat"><b id="intakeDuplicateCount">0</b><span>Possible duplicates</span></div></div>
+                <div class="section card"><div id="intakeList" class="list"><div class="empty">Loading intake items…</div></div></div>
+            </section>
             <section id="page-team" class="page">
                 <div class="hero">
                     <div><h1>Team</h1><p>See each salesperson’s workload, results, and opportunities that still need an owner.</p></div>
@@ -1566,6 +1571,7 @@
                 <button class="tabbtn" data-page="win" onclick="go('win')"><span class="app-icon">✓</span>To-Do</button>
                 <button class="tabbtn" data-page="pipeline" onclick="go('pipeline')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor" opacity=".58"/><circle cx="19" cy="12" r="2" fill="currentColor" opacity=".3"/></svg></span>Pipeline</button>
                 <button class="tabbtn" data-page="crm" onclick="go('crm')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span>CRM</button>
+                <button id="intakeNav" class="tabbtn" data-page="intake" onclick="go('intake')" hidden><span class="app-icon">⌁</span>Intake</button>
                 <button class="tabbtn" data-page="inventory" onclick="go('inventory')"><span class="app-icon">▦</span>Inventory</button>
                 <button class="tabbtn" data-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span>AI</button>
                 <button class="tabbtn" data-page="deals" onclick="go('deals')"><span class="app-icon">$</span>Deals</button>
@@ -1621,6 +1627,7 @@
                 appointments: [],
                 quotes: [],
                 deals: [],
+                intake: [],
                 metrics: null,
                 team: null,
                 currentUser: null,
@@ -1878,6 +1885,7 @@
                 stopLiveSync();
                 loadDemo();
                 $('teamNav').hidden = true;
+                $('intakeNav').hidden = true;
                 $('developerAuditNav').hidden = true;
                 $('developerSecurityNav').hidden = true;
                 $('supportBanner').hidden = true;
@@ -1929,6 +1937,10 @@
                     toast('Team management is available to Admin and Developer accounts only');
                     page = 'today';
                 }
+                if (page === 'intake' && state.currentUser?.role !== 'admin') {
+                    toast('Lead Intake is available to Admin accounts only');
+                    page = 'today';
+                }
                 if (page === 'developer-audit' && state.currentUser?.role !== 'developer') {
                     toast('Developer Audit is available to Developer accounts only');
                     page = 'today';
@@ -1955,6 +1967,8 @@
                     renderDeals();
                 if (page === 'team')
                     renderTeam();
+                if (page === 'intake')
+                    renderIntake();
                 if (page === 'developer-audit')
                     loadDeveloperAudit();
                 if (page === 'developer-security')
@@ -2005,6 +2019,7 @@
                 $('demoNote').hidden = false;
                 $('demoNote').textContent = 'Live customers and pipeline · remaining modules are in preview mode.';
                 $('teamNav').hidden = !['admin', 'developer'].includes(user.role);
+                $('intakeNav').hidden = user.role !== 'admin';
                 $('developerAuditNav').hidden = user.role !== 'developer';
                 $('developerSecurityNav').hidden = user.role !== 'developer';
                 setSupportBanner(user.role === 'developer' && Boolean(user.workspace_id), user.workspace_name);
@@ -2064,6 +2079,7 @@
                         return
                     }
                     const [leads, deals, followups, appointments, inventory, quotes, metrics, settings] = await Promise.all([api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics'), api('/api/settings')]);
+                    const intake = me.role === 'admin' ? await api('/api/intake') : [];
                     const team = ['admin', 'developer'].includes(me.role) ? await api('/api/team') : null;
                     loadDemo();
                     state.leads = leads;
@@ -2073,6 +2089,7 @@
                     state.inventory = inventory;
                     state.quotes = quotes;
                     state.metrics = metrics;
+                    state.intake = intake;
                     state.team = team;
                     state.currentUser = me;
                     state.supportMode = me.role === 'developer' && Boolean(me.workspace_id);
@@ -2081,7 +2098,7 @@
                     stages = settings.stages || stages;
                     followupReminderHours = Number(settings.followup_hours || followupReminderHours);
                     demoMode = false;
-                    renderWin(); renderPipeline(); renderCRM(); renderDeals(); renderInventory(); renderTeam();
+                    renderWin(); renderPipeline(); renderCRM(); renderDeals(); renderInventory(); renderTeam(); renderIntake();
                     applyAuthenticatedUser(me);
                     startLiveSync()
                 } catch (e) {
@@ -2114,6 +2131,7 @@
                 profileDirty = false;
                 closeModal(true);
                 $('teamNav').hidden = true;
+                $('intakeNav').hidden = true;
                 $('developerAuditNav').hidden = true;
                 $('developerSecurityNav').hidden = true;
                 $('supportBanner').hidden = true;
@@ -2396,6 +2414,53 @@
                 $('crmViewAdd').style.display = definitions.add ? '' : 'none';
                 $('crmViewAdd').setAttribute('onclick', definitions.action);
                 go('crm-view');
+            }
+            async function loadIntake() {
+                if (state.currentUser?.role !== 'admin') return;
+                try {
+                    state.intake = await api('/api/intake');
+                    renderIntake()
+                } catch (e) { toast(e.message) }
+            }
+            function renderIntake() {
+                const items = state.intake || [];
+                const pending = items.filter(item => item.status === 'Pending');
+                $('intakePendingCount').textContent = pending.length;
+                $('intakeLeadCount').textContent = pending.filter(item => item.classification === 'Likely new lead').length;
+                $('intakeDuplicateCount').textContent = pending.filter(item => item.classification === 'Possible existing customer').length;
+                $('intakeList').innerHTML = pending.map(item => `<div class="item"><div class="itemhead"><div><span class="pill">${esc(item.source || 'Incoming')} · ${esc(item.classification || 'Needs review')}</span><h3>${esc(item.name || 'Unidentified incoming contact')}</h3><div class="meta">${esc(item.phone || item.email || item.source_reference || 'No contact detail supplied')}<br>${esc(item.equipment || 'Interested product not yet known')}<br>${esc(item.message || 'No message content supplied')}</div></div><div class="actions"><button class="mini" onclick="openIntakeLead(${item.id})">Create lead</button><button class="mini" onclick="openIntakeAttach(${item.id})">Attach</button><button class="mini" onclick="resolveIntake(${item.id},'Not a lead')">Not a lead</button></div></div></div>`).join('') || '<div class="empty">No incoming items need review.</div>';
+            }
+            function openIntakeLead(id) {
+                const item = state.intake.find(entry => Number(entry.id) === Number(id));
+                const members = state.team?.members || [];
+                openModal('Create customer from intake', `<p class="muted">Incomplete information is okay—you can enrich the customer profile after the first conversation.</p><div class="field"><label>Customer name</label><input id="intakeLeadName" value="${esc(item?.name || '')}" placeholder="New incoming inquiry"></div><div class="field"><label>Assign to</label><select id="intakeAssignee"><option value="">Leave unassigned</option>${members.map(member => `<option value="${member.id}">${esc(memberLabel(member.email))}</option>`).join('')}</select></div><button class="btn brand" onclick="createIntakeLead(${id})">Create customer</button>`)
+            }
+            async function createIntakeLead(id) {
+                try {
+                    const assignee = $('intakeAssignee').value;
+                    await api('/api/intake/' + id + '/create-lead', {method: 'POST', body: JSON.stringify({name: $('intakeLeadName').value.trim(), assigned_user_id: assignee ? Number(assignee) : null})});
+                    closeModal();
+                    await loadAll();
+                    toast('Customer created from intake')
+                } catch (e) { toast(e.message) }
+            }
+            function openIntakeAttach(id) {
+                openModal('Attach to existing customer', `<div class="field"><label>Customer</label><select id="intakeExistingLead">${state.leads.map(lead => `<option value="${lead.id}">${esc(lead.name)} · ${esc(lead.pipeline_stage)}</option>`).join('')}</select></div><button class="btn brand" onclick="attachIntakeLead(${id})">Attach to customer</button>`)
+            }
+            async function attachIntakeLead(id) {
+                try {
+                    await api('/api/intake/' + id + '/attach/' + $('intakeExistingLead').value, {method: 'POST'});
+                    closeModal();
+                    await loadAll();
+                    toast('Incoming item attached to customer')
+                } catch (e) { toast(e.message) }
+            }
+            async function resolveIntake(id, status) {
+                try {
+                    await api('/api/intake/' + id, {method: 'PATCH', body: JSON.stringify({status})});
+                    await loadIntake();
+                    toast('Intake item marked ' + status.toLowerCase())
+                } catch (e) { toast(e.message) }
             }
             function memberLabel(email='') {
                 const local = email.split('@')[0] || 'Team member';

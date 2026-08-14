@@ -53,6 +53,9 @@ class LeadCreate(BaseModel):
     phone: str = ""
     email: str = ""
     equipment: str = ""
+    source: str = "Manual"
+    source_reference: str = ""
+    original_inquiry: str = ""
     budget: int = 0
     pipeline_stage: str = "New"
     assigned_user_id: int | None = None
@@ -78,6 +81,9 @@ class LeadResponse(BaseModel):
     phone: str
     email: str
     equipment: str
+    source: str
+    source_reference: str
+    original_inquiry: str
     budget: int
     pipeline_stage: str
     follow_up_enabled: bool
