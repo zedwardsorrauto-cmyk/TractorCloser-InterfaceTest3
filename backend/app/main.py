@@ -6,12 +6,12 @@ from io import StringIO
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import Session, joinedload
 
 from .database import Base, SessionLocal, engine, get_db
 from .models import AuditEvent, Deal, Lead, LeadActivity, Role, User, Workspace, WorkspaceRecord
-from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, UserResponse, WorkspaceResponse
+from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, UserResponse, WorkspaceResponse
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="TractorCloser API", version="0.1.0")
@@ -42,6 +42,12 @@ def audit(db: Session, actor: User | None, event_type: str, detail: str = "", wo
 
 def seed_initial_workspace() -> None:
     Base.metadata.create_all(bind=engine)
+    # create_all does not add new columns to an already-running test database.
+    # Keep this small, idempotent compatibility step until formal migrations are added.
+    columns = {column["name"] for column in inspect(engine).get_columns("leads")}
+    if "assigned_user_id" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE leads ADD COLUMN assigned_user_id INTEGER"))
     db = SessionLocal()
     try:
         workspace = db.scalar(select(Workspace).where(Workspace.name == "Tractor Bob"))
@@ -118,6 +124,10 @@ def list_leads(user: User = Depends(get_current_user), db: Session = Depends(get
 @app.post("/api/leads", response_model=LeadResponse, status_code=status.HTTP_201_CREATED)
 def create_lead(payload: LeadCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Lead:
     workspace_id = require_workspace(user)
+    if payload.assigned_user_id is not None:
+        assignee = db.scalar(select(User).where(User.id == payload.assigned_user_id, User.workspace_id == workspace_id, User.active.is_(True)))
+        if not assignee:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team member not found in this workspace")
     lead = Lead(workspace_id=workspace_id, **payload.model_dump())
     db.add(lead)
     db.flush()
@@ -145,6 +155,24 @@ def update_lead_pipeline(lead_id: int, payload: LeadPipelineUpdate, user: User =
     if previous_stage != lead.pipeline_stage:
         db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, type="stage changed", body=f"Moved from {previous_stage} to {lead.pipeline_stage}."))
     audit(db, user, "lead_stage_changed", f"{lead.name}: {previous_stage} → {lead.pipeline_stage}", lead.workspace_id)
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+@app.patch("/api/leads/{lead_id}/assignment", response_model=LeadResponse)
+def assign_lead(lead_id: int, payload: LeadAssignmentUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Lead:
+    if user.role not in {Role.ADMIN, Role.DEVELOPER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    lead = get_workspace_lead(lead_id, user, db)
+    if payload.assigned_user_id is not None:
+        assignee = db.scalar(select(User).where(User.id == payload.assigned_user_id, User.workspace_id == lead.workspace_id, User.active.is_(True)))
+        if not assignee:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Team member not found in this workspace")
+    lead.assigned_user_id = payload.assigned_user_id
+    detail = f"{lead.name} assigned" if payload.assigned_user_id else f"{lead.name} unassigned"
+    db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, type="lead assigned", body=detail))
+    audit(db, user, "lead_assignment_changed", detail, lead.workspace_id)
     db.commit()
     db.refresh(lead)
     return lead
@@ -354,6 +382,39 @@ def metrics(user: User = Depends(get_current_user), db: Session = Depends(get_db
         "appointments_today": appointments_today,
         "month_contacts": len(leads),
         "overdue_followups": overdue_followups,
+    }
+
+
+@app.get("/api/team")
+def team_overview(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if user.role not in {Role.ADMIN, Role.DEVELOPER}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    workspace_id = require_workspace(user)
+    now = datetime.now(timezone.utc)
+    members = list(db.scalars(select(User).where(User.workspace_id == workspace_id, User.active.is_(True)).order_by(User.email)))
+    leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace_id)))
+    deals = list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id)))
+    activities = list(db.scalars(select(LeadActivity).where(LeadActivity.workspace_id == workspace_id).order_by(LeadActivity.created_at.desc()).limit(8)))
+    lead_names = {lead.id: lead.name for lead in leads}
+    month_deals = [deal for deal in deals if deal.sold_at and deal.sold_at.year == now.year and deal.sold_at.month == now.month]
+    rows = []
+    for member in members:
+        owned = [lead for lead in leads if lead.assigned_user_id == member.id]
+        owned_ids = {lead.id for lead in owned}
+        closed = [deal for deal in month_deals if deal.lead_id in owned_ids]
+        rows.append({
+            "id": member.id,
+            "email": member.email,
+            "role": member.role.value,
+            "assigned_leads": len(owned),
+            "active_leads": sum(1 for lead in owned if lead.pipeline_stage not in {"Sold", "Lost"}),
+            "deals_sold": len(closed),
+            "gross": sum(deal.gross_profit for deal in closed),
+        })
+    return {
+        "members": rows,
+        "unassigned": [{"id": lead.id, "name": lead.name, "pipeline_stage": lead.pipeline_stage, "equipment": lead.equipment} for lead in leads if lead.assigned_user_id is None and lead.pipeline_stage not in {"Sold", "Lost"}],
+        "activity": [{"id": item.id, "lead_id": item.lead_id, "lead_name": lead_names.get(item.lead_id, "Customer"), "type": item.type, "body": item.body, "created_at": item.created_at} for item in activities],
     }
 
 

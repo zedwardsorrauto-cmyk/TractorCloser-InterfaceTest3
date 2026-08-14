@@ -193,6 +193,22 @@
                 color: var(--muted)
             }
 
+            .team-table { overflow-x: auto }
+            .team-row { min-width: 650px; display: grid; grid-template-columns: minmax(190px,1.5fr) repeat(4,minmax(92px,.7fr)); gap: 14px; align-items: center; padding: 15px 4px; border-bottom: 1px solid var(--line) }
+            .team-row:last-child { border-bottom: 0 }
+            .team-row.team-head { padding-top: 2px; color: var(--muted); font-size: 12px; font-weight: 850; text-transform: uppercase; letter-spacing: .06em }
+            .team-person { display: flex; gap: 10px; align-items: center; min-width: 0 }
+            .team-avatar { width: 38px; height: 38px; flex: 0 0 auto; border-radius: 50%; display: grid; place-items: center; background: #ece7fb; color: var(--brand); font-size: 12px; font-weight: 900 }
+            .team-person strong,.team-person span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+            .team-person span { color: var(--muted); font-size: 12px; margin-top: 2px }
+            .team-metric b { display: block; font-size: 17px }
+            .team-metric span { color: var(--muted); font-size: 12px }
+            .team-assignment { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line) }
+            .team-assignment:last-child { border-bottom: 0 }
+            .team-activity { display: grid; gap: 11px }
+            .team-activity .meta b { color: var(--ink) }
+            .role-chip { color: #4b327f; background: #efeaff; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 850; text-transform: capitalize }
+
             .stat-link {
                 display: block;
                 margin-top: 9px;
@@ -1410,6 +1426,23 @@
                 </div>
                 <div class="section card"><div id="crmViewContent" class="list"></div></div>
             </section>
+            <section id="page-team" class="page">
+                <div class="hero">
+                    <div><h1>Team</h1><p>See each salesperson’s workload, results, and opportunities that still need an owner.</p></div>
+                    <button class="btn brand" onclick="openAssignLead()">+ Assign lead</button>
+                </div>
+                <div class="grid grid4 section">
+                    <div class="stat"><b id="teamActive">0</b><span>Active leads</span></div>
+                    <div class="stat"><b id="teamGross">$0</b><span>Gross this month</span></div>
+                    <div class="stat"><b id="teamSold">0</b><span>Deals sold</span></div>
+                    <div class="stat"><b id="teamUnassigned">0</b><span>Unassigned leads</span></div>
+                </div>
+                <div class="grid grid2 section">
+                    <div class="card"><div class="itemhead"><div><h2 style="margin:0">Sales team</h2><p class="muted">Current assigned workload and results.</p></div></div><div class="team-table"><div id="teamMembers"></div></div></div>
+                    <div class="card"><div class="itemhead"><div><h2 style="margin:0">Needs an owner</h2><p class="muted">Assign these opportunities before they get missed.</p></div><button class="mini" onclick="openAssignLead()">Assign</button></div><div id="teamUnassignedList"></div></div>
+                </div>
+                <div class="section card"><h2 style="margin-top:0">Team activity</h2><div id="teamActivity" class="team-activity"></div></div>
+            </section>
             <section id="page-inventory" class="page">
                 <div class="hero">
                     <div>
@@ -1496,6 +1529,7 @@
             <button class="tabbtn" data-page="inventory" onclick="go('inventory')"><span class="app-icon">▦</span>Inventory</button>
             <button class="tabbtn" data-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span>AI</button>
             <button class="tabbtn" data-page="deals" onclick="go('deals')"><span class="app-icon">$</span>Deals</button>
+            <button id="teamNav" class="tabbtn" data-page="team" onclick="go('team')" hidden><span class="app-icon">♙</span>Team</button>
             <button class="tabbtn" data-page="calculator" onclick="go('calculator')"><span class="app-icon">#</span>Calculator</button>
             <button class="tabbtn nav-utility" onclick="toggleRailNotifications()"><span class="nav-icon app-icon round">!</span>Notifications<span class="notification-badge">3</span><span id="notificationChevron" class="notification-chevron closed">⌄</span></button>
             <div id="railNotifications" class="rail-notifications" hidden>
@@ -1542,7 +1576,9 @@
                 appointments: [],
                 quotes: [],
                 deals: [],
-                metrics: null
+                metrics: null,
+                team: null,
+                currentUser: null
             };
             let stages = JSON.parse(localStorage.getItem('tractorcloser_pipeline_stages') || 'null') || ['New', 'Contacted', 'Appointment', 'Demo', 'Quote', 'Negotiating', 'Sold', 'Lost'];
             let followupReminderHours = Number(localStorage.getItem('tractorcloser_followup_reminder_hours') || 48);
@@ -1794,6 +1830,7 @@
                 localStorage.removeItem('tractorcloser_token');
                 token = null;
                 loadDemo();
+                $('teamNav').hidden = true;
                 $('signInButton').hidden = false;
                 showLoginScreen();
                 go('today');
@@ -1854,13 +1891,16 @@
                     renderInventory();
                 if (page === 'deals')
                     renderDeals();
+                if (page === 'team')
+                    renderTeam();
                 if (page === 'calculator') { renderPaymentOptions(); calculatePayment(); }
                 if (page === 'ai') {
                     renderAIQueue();
                 }
             }
             function openMobileMenu(menu) {
-                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button></div>`)
+                const teamLink = state.currentUser?.role === 'admin' ? `<button class="item" onclick="closeModal();go('team')"><div class="itemhead"><div><h3><span class="app-icon">♙</span>Team</h3><div class="meta">Assignments and team performance.</div></div></div></button>` : '';
+                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamLink}</div>`)
             }
             function login() {
                 showLoginScreen()
@@ -1875,12 +1915,14 @@
                 $('loginError').textContent = ''
             }
             function applyAuthenticatedUser(user) {
+                state.currentUser = user;
                 $('greeting').textContent = `Hi, ${user.email.split('@')[0]} — your Tractor Bob workspace is ready.`;
                 $('avatar').textContent = user.email.slice(0, 2).toUpperCase();
                 $('drawerName').textContent = user.email;
                 $('signInButton').hidden = true;
                 $('demoNote').hidden = false;
                 $('demoNote').textContent = 'Live customers and pipeline · remaining modules are in preview mode.';
+                $('teamNav').hidden = user.role !== 'admin';
                 hideLoginScreen()
             }
             async function doLogin() {
@@ -1918,6 +1960,7 @@
                     { loadDemo(); showLoginScreen(); return }
                 try {
                     const [me, leads, deals, followups, appointments, inventory, quotes, metrics, settings] = await Promise.all([api('/api/me'), api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics'), api('/api/settings')]);
+                    const team = me.role === 'admin' ? await api('/api/team') : null;
                     loadDemo();
                     state.leads = leads;
                     state.deals = deals;
@@ -1926,12 +1969,13 @@
                     state.inventory = inventory;
                     state.quotes = quotes;
                     state.metrics = metrics;
+                    state.team = team;
                     state.plan.summary = {...state.plan.summary, ...metrics};
                     state.plan.goals = settings.goals || state.plan.goals;
                     stages = settings.stages || stages;
                     followupReminderHours = Number(settings.followup_hours || followupReminderHours);
                     demoMode = false;
-                    renderWin(); renderPipeline(); renderCRM(); renderDeals(); renderInventory();
+                    renderWin(); renderPipeline(); renderCRM(); renderDeals(); renderInventory(); renderTeam();
                     applyAuthenticatedUser(me)
                 } catch (e) {
                     if (/session|authentication|expired/i.test(e.message)) {
@@ -2083,6 +2127,43 @@
                 $('crmViewAdd').style.display = definitions.add ? '' : 'none';
                 $('crmViewAdd').setAttribute('onclick', definitions.action);
                 go('crm-view');
+            }
+            function memberLabel(email='') {
+                const local = email.split('@')[0] || 'Team member';
+                return local.split(/[._-]/).map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ')
+            }
+            function memberInitials(email='') {
+                return memberLabel(email).split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase()
+            }
+            function renderTeam() {
+                const team = state.team;
+                if (!team) return;
+                const members = team.members || [];
+                const active = members.reduce((sum, member) => sum + Number(member.active_leads || 0), 0);
+                const gross = members.reduce((sum, member) => sum + Number(member.gross || 0), 0);
+                const sold = members.reduce((sum, member) => sum + Number(member.deals_sold || 0), 0);
+                $('teamActive').textContent = active;
+                $('teamGross').textContent = money(gross);
+                $('teamSold').textContent = sold;
+                $('teamUnassigned').textContent = (team.unassigned || []).length;
+                $('teamMembers').innerHTML = `<div class="team-row team-head"><span>Salesperson</span><span>Active leads</span><span>Assigned</span><span>Sold</span><span>Gross</span></div>` + members.map(member => `<div class="team-row"><div class="team-person"><span class="team-avatar">${memberInitials(member.email)}</span><div><strong>${esc(memberLabel(member.email))}</strong><span>${esc(member.email)} <em class="role-chip">${esc(member.role)}</em></span></div></div><div class="team-metric"><b>${Number(member.active_leads || 0)}</b><span>in progress</span></div><div class="team-metric"><b>${Number(member.assigned_leads || 0)}</b><span>total leads</span></div><div class="team-metric"><b>${Number(member.deals_sold || 0)}</b><span>this month</span></div><div class="team-metric"><b>${money(member.gross)}</b><span>this month</span></div></div>`).join('') || '<div class="empty">No active team members.</div>';
+                $('teamUnassignedList').innerHTML = (team.unassigned || []).slice(0, 6).map(lead => `<div class="team-assignment"><div><strong>${esc(lead.name)}</strong><div class="meta">${esc(lead.pipeline_stage)} · ${esc(lead.equipment || 'Equipment not specified')}</div></div><button class="mini" onclick="openAssignLead(${lead.id})">Assign</button></div>`).join('') || '<div class="empty">Every active lead has an owner.</div>';
+                $('teamActivity').innerHTML = (team.activity || []).map(item => `<button class="item" onclick="openLeadDetail(${item.lead_id})"><div class="meta"><b>${esc(item.lead_name)}</b> · ${esc(item.type)}<br>${esc(item.body || 'Updated customer record')} · ${new Date(item.created_at).toLocaleString()}</div></button>`).join('') || '<div class="empty">No team activity yet.</div>';
+            }
+            function openAssignLead(leadId=null) {
+                const unassigned = state.team?.unassigned || [];
+                const members = state.team?.members || [];
+                if (!unassigned.length) return toast('Every active lead already has an owner');
+                const selectedLead = leadId || unassigned[0].id;
+                openModal('Assign lead', `<p class="muted">Ownership keeps the team view accountable without changing the customer record.</p><div class="field"><label>Customer</label><select id="assignLead">${unassigned.map(lead => `<option value="${lead.id}" ${Number(lead.id) === Number(selectedLead) ? 'selected' : ''}>${esc(lead.name)} · ${esc(lead.pipeline_stage)}</option>`).join('')}</select></div><div class="field"><label>Assign to</label><select id="assignMember">${members.map(member => `<option value="${member.id}">${esc(memberLabel(member.email))}</option>`).join('')}</select></div><button class="btn brand" onclick="saveLeadAssignment()">Assign lead</button>`)
+            }
+            async function saveLeadAssignment() {
+                try {
+                    await api('/api/leads/' + $('assignLead').value + '/assignment', {method: 'PATCH', body: JSON.stringify({assigned_user_id: Number($('assignMember').value)})});
+                    closeModal();
+                    await loadAll();
+                    toast('Lead assigned')
+                } catch (e) { toast(e.message) }
             }
             function renderInventory() {
                 $('inventory').innerHTML = state.inventory.map(i => `<div class="item" data-search="${esc(searchable(i.year,i.make,i.model,i.features))}"><div class="itemhead"><div><h3>${esc(i.year || '')} ${esc(i.make)} ${esc(i.model)}</h3><div class="meta">${i.hours || 0} hrs · ${money(i.price)} · ${esc(i.status)}<br>${esc(i.features || '')}</div></div><div class="actions"><button class="mini" onclick="toggleInventory(${i.id},'${i.status === 'Available' ? 'Sold' : 'Available'}')">${i.status === 'Available' ? 'Mark sold' : 'Mark available'}</button><button class="mini" onclick="deleteInventory(${i.id})">Delete</button></div></div></div>`).join('') || '<div class="empty">No inventory yet.</div>'

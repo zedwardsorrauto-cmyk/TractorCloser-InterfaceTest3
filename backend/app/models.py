@@ -53,6 +53,7 @@ class Lead(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    assigned_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     name: Mapped[str] = mapped_column(String(160), index=True)
     phone: Mapped[str] = mapped_column(String(50), default="")
     email: Mapped[str] = mapped_column(String(320), default="")

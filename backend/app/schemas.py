@@ -39,11 +39,16 @@ class LeadCreate(BaseModel):
     equipment: str = ""
     budget: int = 0
     pipeline_stage: str = "New"
+    assigned_user_id: int | None = None
 
 
 class LeadPipelineUpdate(BaseModel):
     pipeline_stage: str
     follow_up_enabled: bool | None = None
+
+
+class LeadAssignmentUpdate(BaseModel):
+    assigned_user_id: int | None = None
 
 
 class ActivityCreate(BaseModel):
@@ -60,6 +65,7 @@ class LeadResponse(BaseModel):
     budget: int
     pipeline_stage: str
     follow_up_enabled: bool
+    assigned_user_id: int | None
     is_test_data: bool
     created_at: datetime
 
