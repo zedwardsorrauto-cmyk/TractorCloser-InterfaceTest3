@@ -9,8 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from .database import Base, SessionLocal, engine, get_db
-from .models import AuditEvent, Lead, LeadActivity, Role, User, Workspace
-from .schemas import ActivityCreate, ActivityResponse, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, UserResponse, WorkspaceResponse
+from .models import AuditEvent, Deal, Lead, LeadActivity, Role, User, Workspace, WorkspaceRecord
+from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, UserResponse, WorkspaceResponse
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="TractorCloser API", version="0.1.0")
@@ -164,6 +164,156 @@ def create_lead_activity(lead_id: int, payload: ActivityCreate, user: User = Dep
     db.commit()
     db.refresh(activity)
     return activity
+
+
+@app.get("/api/deals", response_model=list[DealResponse])
+def list_deals(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Deal]:
+    workspace_id = require_workspace(user)
+    return list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id).order_by(Deal.sold_at.desc())))
+
+
+@app.post("/api/deals", response_model=DealResponse, status_code=status.HTTP_201_CREATED)
+def record_deal(payload: DealCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Deal:
+    workspace_id = require_workspace(user)
+    lead = get_workspace_lead(payload.lead_id, user, db) if payload.lead_id else None
+    if lead:
+        lead.pipeline_stage = "Sold"
+        lead.follow_up_enabled = False
+        existing = db.scalar(select(Deal).where(Deal.workspace_id == workspace_id, Deal.lead_id == lead.id))
+    else:
+        existing = None
+    if existing:
+        existing.customer = payload.customer
+        existing.equipment = payload.equipment
+        existing.sale_price = payload.sale_price
+        existing.gross_profit = payload.gross_profit
+        deal = existing
+    else:
+        deal = Deal(workspace_id=workspace_id, **payload.model_dump())
+        db.add(deal)
+        db.flush()
+    if lead:
+        db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, type="deal recorded", body=f"Sold for ${payload.sale_price:,} with ${payload.gross_profit:,} total gross."))
+    audit(db, user, "deal_recorded", payload.customer, workspace_id)
+    db.commit()
+    db.refresh(deal)
+    return deal
+
+
+@app.post("/api/deals/{deal_id}/revert")
+def revert_deal(deal_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    workspace_id = require_workspace(user)
+    deal = db.scalar(select(Deal).where(Deal.id == deal_id, Deal.workspace_id == workspace_id))
+    if not deal:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deal not found")
+    if deal.lead_id:
+        lead = get_workspace_lead(deal.lead_id, user, db)
+        lead.pipeline_stage = "Negotiating"
+        lead.follow_up_enabled = True
+        db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, type="sale reverted", body="Recorded sale was reverted and the customer returned to Negotiating."))
+    audit(db, user, "deal_reverted", deal.customer, workspace_id)
+    db.delete(deal)
+    db.commit()
+    return {"reverted": True}
+
+
+def list_records(record_type: str, user: User, db: Session) -> list[dict]:
+    workspace_id = require_workspace(user)
+    records = db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == record_type).order_by(WorkspaceRecord.created_at.desc()))
+    return [{"id": item.id, **item.payload} for item in records]
+
+
+def create_record(record_type: str, payload: dict, user: User, db: Session) -> dict:
+    workspace_id = require_workspace(user)
+    record = WorkspaceRecord(workspace_id=workspace_id, record_type=record_type, payload=payload)
+    db.add(record)
+    db.flush()
+    audit(db, user, f"{record_type}_created", "", workspace_id)
+    db.commit()
+    return {"id": record.id, **record.payload}
+
+
+def update_record(record_type: str, record_id: int, payload: dict, user: User, db: Session) -> dict:
+    workspace_id = require_workspace(user)
+    record = db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.id == record_id, WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == record_type))
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Record not found")
+    record.payload = {**record.payload, **payload}
+    audit(db, user, f"{record_type}_updated", "", workspace_id)
+    db.commit()
+    return {"id": record.id, **record.payload}
+
+
+@app.get("/api/followups")
+def get_followups(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    return list_records("followup", user, db)
+
+
+@app.post("/api/followups")
+def create_followup(payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if payload.get("lead_id"):
+        payload = {**payload, "name": get_workspace_lead(int(payload["lead_id"]), user, db).name}
+    return create_record("followup", {**payload, "status": payload.get("status", "Pending")}, user, db)
+
+
+@app.patch("/api/followups/{record_id}")
+def update_followup(record_id: int, payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return update_record("followup", record_id, payload, user, db)
+
+
+@app.get("/api/appointments")
+def get_appointments(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    return list_records("appointment", user, db)
+
+
+@app.post("/api/appointments")
+def create_appointment(payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if payload.get("lead_id"):
+        payload = {**payload, "lead_name": get_workspace_lead(int(payload["lead_id"]), user, db).name}
+    return create_record("appointment", {**payload, "status": payload.get("status", "Scheduled")}, user, db)
+
+
+@app.patch("/api/appointments/{record_id}")
+def update_appointment(record_id: int, payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return update_record("appointment", record_id, payload, user, db)
+
+
+@app.get("/api/inventory")
+def get_inventory(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    return list_records("inventory", user, db)
+
+
+@app.post("/api/inventory")
+def create_inventory(payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return create_record("inventory", {**payload, "status": payload.get("status", "Available")}, user, db)
+
+
+@app.patch("/api/inventory/{record_id}")
+def update_inventory(record_id: int, payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return update_record("inventory", record_id, payload, user, db)
+
+
+@app.delete("/api/inventory/{record_id}")
+def delete_inventory(record_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    workspace_id = require_workspace(user)
+    record = db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.id == record_id, WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "inventory"))
+    if not record: raise HTTPException(status_code=404, detail="Record not found")
+    db.delete(record); db.commit(); return {"deleted": True}
+
+
+@app.get("/api/quotes")
+def get_quotes(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    return list_records("quote", user, db)
+
+
+@app.post("/api/quotes")
+def create_quote(payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return create_record("quote", {**payload, "status": payload.get("status", "Draft")}, user, db)
+
+
+@app.patch("/api/quotes/{record_id}")
+def update_quote(record_id: int, payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    return update_record("quote", record_id, payload, user, db)
 
 
 @app.get("/api/developer/workspaces", response_model=list[WorkspaceResponse])

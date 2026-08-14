@@ -70,3 +70,21 @@ class ActivityResponse(BaseModel):
     type: str
     body: str
     created_at: datetime
+
+
+class DealCreate(BaseModel):
+    lead_id: int | None = None
+    customer: str
+    equipment: str = ""
+    sale_price: int = 0
+    gross_profit: int = 0
+
+
+class DealResponse(BaseModel):
+    id: int
+    lead_id: int | None
+    customer: str
+    equipment: str
+    sale_price: int
+    gross_profit: int
+    sold_at: datetime

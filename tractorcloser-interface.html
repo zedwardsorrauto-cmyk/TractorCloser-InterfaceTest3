@@ -1834,7 +1834,7 @@
                 const r = await fetch(API_BASE + path, opts);
                 const d = await r.json().catch( () => ({}));
                 if (!r.ok)
-                    throw Error(d.error || 'Request failed');
+                    throw Error(d.detail || d.error || 'Request failed');
                 return d
             }
             function go(page) {
@@ -1903,6 +1903,7 @@
                         throw Error(d.detail || d.error || 'Sign-in failed');
                     localStorage.setItem('tractorcloser_token', d.access_token);
                     token = d.access_token;
+                    demoMode = false;
                     closeModal();
                     loadDemo();
                     applyAuthenticatedUser(d.user);
@@ -1916,11 +1917,16 @@
                 if (!token)
                     { loadDemo(); showLoginScreen(); return }
                 try {
-                    const [me, leads] = await Promise.all([api('/api/me'), api('/api/leads')]);
+                    const [me, leads, deals, followups, appointments, inventory, quotes] = await Promise.all([api('/api/me'), api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes')]);
                     loadDemo();
                     state.leads = leads;
+                    state.deals = deals;
+                    state.followups = followups;
+                    state.appointments = appointments;
+                    state.inventory = inventory;
+                    state.quotes = quotes;
                     demoMode = false;
-                    renderPipeline(); renderCRM();
+                    renderPipeline(); renderCRM(); renderDeals(); renderInventory();
                     applyAuthenticatedUser(me)
                 } catch (e) {
                     if (/session|authentication|expired/i.test(e.message)) {
@@ -2229,6 +2235,7 @@
                     }
                     await api('/api/leads/' + id + '/pipeline', {method: 'PATCH', body: JSON.stringify({pipeline_stage: nextStage, follow_up_enabled: followupEnabled})});
                     if (note) await api('/api/leads/' + id + '/activities', {method: 'POST', body: JSON.stringify({type: 'note', body: note})});
+                    if (nextStage === 'Sold') await api('/api/deals', {method: 'POST', body: JSON.stringify({lead_id: id, customer: l.name, equipment: $('detailSoldEquipment').value.trim() || l.equipment || '', sale_price: Number($('detailSoldPrice').value || 0), gross_profit: Number($('detailSoldGross').value || 0)})});
                     if (followupEnabled && followupChanged) await api('/api/followups', {method: 'POST', body: JSON.stringify({lead_id: id, due_at: new Date(Date.now() + followupReminderHours * 3600000).toISOString(), notes: 'Scheduled from CRM'})});
                     setProfileDirty(false); closeModal(); await loadAll();
                     if (nextStage === 'Sold' && (l.pipeline_stage || l.status) !== 'Sold') celebrateWin();
