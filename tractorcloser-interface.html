@@ -1875,12 +1875,12 @@
                 $('loginError').textContent = ''
             }
             function applyAuthenticatedUser(user) {
-                $('greeting').textContent = `Hi, ${user.email.split('@')[0]} — preview data is active.`;
+                $('greeting').textContent = `Hi, ${user.email.split('@')[0]} — your Tractor Bob workspace is ready.`;
                 $('avatar').textContent = user.email.slice(0, 2).toUpperCase();
                 $('drawerName').textContent = user.email;
                 $('signInButton').hidden = true;
                 $('demoNote').hidden = false;
-                $('demoNote').textContent = 'Signed in — CRM data is still in preview mode.';
+                $('demoNote').textContent = 'Live customers and pipeline · remaining modules are in preview mode.';
                 hideLoginScreen()
             }
             async function doLogin() {
@@ -1904,8 +1904,7 @@
                     localStorage.setItem('tractorcloser_token', d.access_token);
                     token = d.access_token;
                     closeModal();
-                    loadDemo();
-                    applyAuthenticatedUser(d.user);
+                    await loadAll();
                     toast('Signed in successfully')
                 } catch (e) {
                     $('loginError').textContent = e.message || 'Unable to sign in.'
@@ -1915,8 +1914,11 @@
                 if (!token)
                     { loadDemo(); showLoginScreen(); return }
                 try {
-                    const me = await api('/api/me');
+                    const [me, leads] = await Promise.all([api('/api/me'), api('/api/leads')]);
                     loadDemo();
+                    state.leads = leads;
+                    demoMode = false;
+                    renderPipeline(); renderCRM();
                     applyAuthenticatedUser(me)
                 } catch (e) {
                     if (/session|authentication|expired/i.test(e.message)) {

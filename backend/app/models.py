@@ -46,3 +46,31 @@ class AuditEvent(Base):
     event_type: Mapped[str] = mapped_column(String(100), index=True)
     detail: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Lead(Base):
+    __tablename__ = "leads"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    name: Mapped[str] = mapped_column(String(160), index=True)
+    phone: Mapped[str] = mapped_column(String(50), default="")
+    email: Mapped[str] = mapped_column(String(320), default="")
+    equipment: Mapped[str] = mapped_column(String(240), default="")
+    budget: Mapped[int] = mapped_column(Integer, default=0)
+    pipeline_stage: Mapped[str] = mapped_column(String(80), default="New", index=True)
+    follow_up_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_test_data: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class LeadActivity(Base):
+    __tablename__ = "lead_activities"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True)
+    lead_id: Mapped[int] = mapped_column(ForeignKey("leads.id"), index=True)
+    type: Mapped[str] = mapped_column(String(80), default="note")
+    body: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

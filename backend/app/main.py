@@ -9,8 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from .database import Base, SessionLocal, engine, get_db
-from .models import AuditEvent, Role, User, Workspace
-from .schemas import LoginRequest, LoginResponse, UserResponse, WorkspaceResponse
+from .models import AuditEvent, Lead, LeadActivity, Role, User, Workspace
+from .schemas import ActivityCreate, ActivityResponse, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, UserResponse, WorkspaceResponse
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="TractorCloser API", version="0.1.0")
@@ -59,6 +59,18 @@ def seed_initial_workspace() -> None:
                 if not password:
                     continue
                 db.add(User(email=email, password_hash=hash_password(password), role=role, workspace_id=workspace_id))
+        if not db.scalar(select(Lead).where(Lead.workspace_id == workspace.id)):
+            demo_leads = [
+                ("Jordan Miller (Test)", "555-0142", "jordan.test@example.com", "2025 Yanmar YM347", 42000, "Negotiating"),
+                ("Casey Rodriguez (Test)", "555-0188", "casey.test@example.com", "SA425 tractor package", 31000, "Appointment"),
+                ("Morgan Lee (Test)", "555-0161", "morgan.test@example.com", "Compact tractor", 28000, "Quote"),
+                ("Riley Smith (Test)", "555-0173", "riley.test@example.com", "Zero-turn mower", 9500, "Contacted"),
+                ("Taylor Brooks (Test)", "555-0124", "taylor.test@example.com", "24–30 HP compact tractor", 24000, "New"),
+                ("Drew Patel (Test)", "555-0195", "drew.test@example.com", "Mid-mount mower package", 18000, "Demo"),
+                ("Cameron Nguyen (Test)", "555-0119", "cameron.test@example.com", "Yanmar UTV", 22000, "Contacted"),
+                ("Blake Thompson (Test)", "555-0157", "blake.test@example.com", "48-inch rotary cutter", 4200, "Quote"),
+            ]
+            db.add_all([Lead(workspace_id=workspace.id, name=name, phone=phone, email=email, equipment=equipment, budget=budget, pipeline_stage=stage, is_test_data=True) for name, phone, email, equipment, budget, stage in demo_leads])
         db.commit()
     finally:
         db.close()
@@ -88,6 +100,70 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
 def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> UserResponse:
     db.refresh(user)
     return user_response(user)
+
+
+def require_workspace(user: User) -> int:
+    if user.workspace_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Select a dealership workspace before accessing CRM data")
+    return user.workspace_id
+
+
+@app.get("/api/leads", response_model=list[LeadResponse])
+def list_leads(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Lead]:
+    workspace_id = require_workspace(user)
+    return list(db.scalars(select(Lead).where(Lead.workspace_id == workspace_id).order_by(Lead.created_at.desc())))
+
+
+@app.post("/api/leads", response_model=LeadResponse, status_code=status.HTTP_201_CREATED)
+def create_lead(payload: LeadCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Lead:
+    workspace_id = require_workspace(user)
+    lead = Lead(workspace_id=workspace_id, **payload.model_dump())
+    db.add(lead)
+    db.flush()
+    db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, type="lead created", body="Customer profile created."))
+    audit(db, user, "lead_created", lead.name, workspace_id)
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+def get_workspace_lead(lead_id: int, user: User, db: Session) -> Lead:
+    lead = db.scalar(select(Lead).where(Lead.id == lead_id, Lead.workspace_id == require_workspace(user)))
+    if not lead:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+    return lead
+
+
+@app.patch("/api/leads/{lead_id}/pipeline", response_model=LeadResponse)
+def update_lead_pipeline(lead_id: int, payload: LeadPipelineUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Lead:
+    lead = get_workspace_lead(lead_id, user, db)
+    previous_stage = lead.pipeline_stage
+    lead.pipeline_stage = payload.pipeline_stage
+    if payload.follow_up_enabled is not None:
+        lead.follow_up_enabled = payload.follow_up_enabled
+    if previous_stage != lead.pipeline_stage:
+        db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, type="stage changed", body=f"Moved from {previous_stage} to {lead.pipeline_stage}."))
+    audit(db, user, "lead_stage_changed", f"{lead.name}: {previous_stage} → {lead.pipeline_stage}", lead.workspace_id)
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+@app.get("/api/leads/{lead_id}/activities", response_model=list[ActivityResponse])
+def list_lead_activities(lead_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[LeadActivity]:
+    lead = get_workspace_lead(lead_id, user, db)
+    return list(db.scalars(select(LeadActivity).where(LeadActivity.lead_id == lead.id, LeadActivity.workspace_id == lead.workspace_id).order_by(LeadActivity.created_at.desc())))
+
+
+@app.post("/api/leads/{lead_id}/activities", response_model=ActivityResponse, status_code=status.HTTP_201_CREATED)
+def create_lead_activity(lead_id: int, payload: ActivityCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> LeadActivity:
+    lead = get_workspace_lead(lead_id, user, db)
+    activity = LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, **payload.model_dump())
+    db.add(activity)
+    audit(db, user, "lead_activity_added", lead.name, lead.workspace_id)
+    db.commit()
+    db.refresh(activity)
+    return activity
 
 
 @app.get("/api/developer/workspaces", response_model=list[WorkspaceResponse])
