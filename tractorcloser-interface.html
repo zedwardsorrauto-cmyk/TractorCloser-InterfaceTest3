@@ -1928,7 +1928,7 @@
                     state.metrics = metrics;
                     state.plan.summary = {...state.plan.summary, ...metrics};
                     demoMode = false;
-                    renderPipeline(); renderCRM(); renderDeals(); renderInventory();
+                    renderWin(); renderPipeline(); renderCRM(); renderDeals(); renderInventory();
                     applyAuthenticatedUser(me)
                 } catch (e) {
                     if (/session|authentication|expired/i.test(e.message)) {
