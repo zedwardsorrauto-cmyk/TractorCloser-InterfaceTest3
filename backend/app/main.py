@@ -110,7 +110,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
     user = db.scalar(select(User).options(joinedload(User.workspace)).where(User.email == str(payload.email).lower()))
     if not user or not user.active or not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
-    audit(db, user, "login")
+    audit(db, user, "developer_login" if user.role == Role.DEVELOPER else "login")
     db.commit()
     return LoginResponse(access_token=create_access_token(user), user=user_response(user))
 
@@ -478,6 +478,46 @@ def developer_workspaces(user: User = Depends(get_current_user), db: Session = D
     audit(db, user, "workspace_list_viewed", "Developer support workspace list")
     db.commit()
     return list(db.scalars(select(Workspace).order_by(Workspace.name)))
+
+
+def developer_audit_rows(db: Session) -> list[dict]:
+    developers = list(db.scalars(select(User).where(User.role == Role.DEVELOPER)))
+    developer_ids = {developer.id for developer in developers}
+    events = list(db.scalars(select(AuditEvent).where(AuditEvent.actor_user_id.in_(developer_ids)).order_by(AuditEvent.created_at.desc()).limit(500))) if developer_ids else []
+    actor_ids = {event.actor_user_id for event in events if event.actor_user_id is not None}
+    workspace_ids = {event.workspace_id for event in events if event.workspace_id is not None}
+    users = {record.id: record.email for record in developers if record.id in actor_ids}
+    workspaces = {record.id: record.name for record in db.scalars(select(Workspace).where(Workspace.id.in_(workspace_ids)))} if workspace_ids else {}
+    return [{
+        "id": event.id,
+        "timestamp": event.created_at,
+        "event": event.event_type,
+        "developer": users.get(event.actor_user_id, "System"),
+        "workspace": workspaces.get(event.workspace_id, "Developer workspace"),
+        "detail": event.detail,
+    } for event in events]
+
+
+@app.get("/api/developer/audit")
+def developer_audit_log(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    if user.role != Role.DEVELOPER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Developer access required")
+    return developer_audit_rows(db)
+
+
+@app.get("/api/developer/audit.csv")
+def download_developer_audit(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> StreamingResponse:
+    if user.role != Role.DEVELOPER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Developer access required")
+    rows = developer_audit_rows(db)
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["timestamp", "event", "developer", "workspace", "detail"])
+    for row in rows:
+        writer.writerow([row["timestamp"].isoformat() if row["timestamp"] else "", row["event"], row["developer"], row["workspace"], row["detail"]])
+    audit(db, user, "developer_audit_exported", "Developer audit CSV exported", getattr(user, "support_workspace_id", None))
+    db.commit()
+    return StreamingResponse(iter([output.getvalue()]), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=tractorcloser-developer-audit.csv"})
 
 
 @app.post("/api/developer/workspaces/{workspace_id}/support-access")

@@ -1461,6 +1461,10 @@
                 </div>
                 <div class="section card"><h2 style="margin-top:0">Team activity</h2><div id="teamActivity" class="team-activity"></div></div>
             </section>
+            <section id="page-developer-audit" class="page">
+                <div class="hero"><div><h1>Developer Audit</h1><p>Developer sign-ins, support access, and support-mode activity.</p></div><div class="actions"><button class="btn light" onclick="loadDeveloperAudit()">↻ Refresh</button><button class="btn brand" onclick="downloadDeveloperAudit()">↓ Download CSV</button></div></div>
+                <div class="section card"><div id="developerAuditList" class="list"><div class="empty">Loading Developer audit history…</div></div></div>
+            </section>
             <section id="page-inventory" class="page">
                 <div class="hero">
                     <div>
@@ -1549,6 +1553,7 @@
                 <button class="tabbtn" data-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span>AI</button>
                 <button class="tabbtn" data-page="deals" onclick="go('deals')"><span class="app-icon">$</span>Deals</button>
                 <button id="teamNav" class="tabbtn" data-page="team" onclick="go('team')" hidden><span class="app-icon">♙</span>Team</button>
+                <button id="developerAuditNav" class="tabbtn" data-page="developer-audit" onclick="go('developer-audit')" hidden><span class="app-icon">⌁</span>Audit</button>
                 <button class="tabbtn" data-page="calculator" onclick="go('calculator')"><span class="app-icon">#</span>Calculator</button>
                 <button class="tabbtn nav-utility" onclick="toggleRailNotifications()"><span class="nav-icon app-icon round">!</span>Notifications<span class="notification-badge">3</span><span id="notificationChevron" class="notification-chevron closed">⌄</span></button>
                 <div id="railNotifications" class="rail-notifications" hidden>
@@ -1852,6 +1857,7 @@
                 token = null;
                 loadDemo();
                 $('teamNav').hidden = true;
+                $('developerAuditNav').hidden = true;
                 $('supportBanner').hidden = true;
                 $('signInButton').hidden = false;
                 showLoginScreen();
@@ -1901,6 +1907,10 @@
                     toast('Team management is available to Admin and Developer accounts only');
                     page = 'today';
                 }
+                if (page === 'developer-audit' && state.currentUser?.role !== 'developer') {
+                    toast('Developer Audit is available to Developer accounts only');
+                    page = 'today';
+                }
                 document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
                 $('page-' + page).classList.add('active');
                 document.querySelectorAll('.tabbtn').forEach(x => x.classList.toggle('active', x.dataset.page === page));
@@ -1919,6 +1929,8 @@
                     renderDeals();
                 if (page === 'team')
                     renderTeam();
+                if (page === 'developer-audit')
+                    loadDeveloperAudit();
                 if (page === 'calculator') { renderPaymentOptions(); calculatePayment(); }
                 if (page === 'ai') {
                     renderAIQueue();
@@ -1926,7 +1938,8 @@
             }
             function openMobileMenu(menu) {
                 const teamLink = ['admin', 'developer'].includes(state.currentUser?.role) ? `<button class="item" onclick="closeModal();go('team')"><div class="itemhead"><div><h3><span class="app-icon">♙</span>Team</h3><div class="meta">Assignments and team performance.</div></div></div></button>` : '';
-                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamLink}</div>`)
+                const auditLink = state.currentUser?.role === 'developer' ? `<button class="item" onclick="closeModal();go('developer-audit')"><div class="itemhead"><div><h3><span class="app-icon">⌁</span>Developer Audit</h3><div class="meta">Support access and security history.</div></div></div></button>` : '';
+                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamLink}${auditLink}</div>`)
             }
             function login() {
                 showLoginScreen()
@@ -1949,6 +1962,7 @@
                 $('demoNote').hidden = false;
                 $('demoNote').textContent = 'Live customers and pipeline · remaining modules are in preview mode.';
                 $('teamNav').hidden = !['admin', 'developer'].includes(user.role);
+                $('developerAuditNav').hidden = user.role !== 'developer';
                 setSupportBanner(user.role === 'developer' && Boolean(user.workspace_id), user.workspace_name);
                 hideLoginScreen()
             }
@@ -2054,6 +2068,32 @@
                     $('supportBanner').hidden = true;
                     await loadAll();
                     toast('Support mode ended')
+                } catch (e) { toast(e.message) }
+            }
+            function auditLabel(value='') {
+                return String(value).replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase())
+            }
+            async function loadDeveloperAudit() {
+                if (state.currentUser?.role !== 'developer') return;
+                try {
+                    const rows = await api('/api/developer/audit');
+                    $('developerAuditList').innerHTML = rows.map(row => `<div class="item"><div class="itemhead"><div><h3>${esc(auditLabel(row.event))}</h3><div class="meta">${esc(row.detail || 'Developer security event')}<br>${esc(row.workspace || 'Developer workspace')} · ${new Date(row.timestamp).toLocaleString()}</div></div><span class="pill">${esc(memberLabel(row.developer || 'System'))}</span></div></div>`).join('') || '<div class="empty">No Developer audit events recorded yet.</div>';
+                } catch (e) { $('developerAuditList').innerHTML = `<div class="empty">${esc(e.message)}</div>` }
+            }
+            async function downloadDeveloperAudit() {
+                try {
+                    const response = await fetch(API_BASE + '/api/developer/audit.csv', {headers: {Authorization: 'Bearer ' + token}});
+                    if (!response.ok) {
+                        const error = await response.json().catch(() => ({}));
+                        throw Error(error.detail || 'Unable to download the audit log');
+                    }
+                    const url = URL.createObjectURL(await response.blob());
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = 'tractorcloser-developer-audit.csv';
+                    link.click();
+                    URL.revokeObjectURL(url);
+                    toast('Developer audit downloaded')
                 } catch (e) { toast(e.message) }
             }
             function renderWin() {
