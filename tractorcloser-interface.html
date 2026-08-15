@@ -2432,9 +2432,7 @@
                 $('wAppt').textContent = s.appointments_today || 0;
                 $('wGross').textContent = money(s.month_gross);
                 renderGoals(p);
-                const html = (p.actions || []).slice(0, 15).map( (a, i) => actionHTML(a, i)).join('') || '<div class="empty">No open actions. Add a lead or inventory.</div>';
-                $('todayActions').innerHTML = html;
-                $('winActions').innerHTML = html;
+                renderPriorityLists(p.actions || []);
                 $('quickWins').innerHTML = (p.quick_wins || []).map(q => `<button class="mini" onclick="quickWin('${esc(q.key)}')">${esc(q.label)} · ${q.count}</button>`).join('')
             }
             function renderGrossProgress(gross, goal) {
@@ -2452,6 +2450,13 @@
                 const payload = encodeURIComponent(JSON.stringify(a));
                 const completeButton = a.type === 'followup' && a.record_id ? `<button class="mini" onclick="completeActionEncoded('${payload}')">✓ Done</button>` : '';
                 return `<div class="item priority-action" data-search="${esc(searchable(a.name,a.phone,a.equipment,a.title,a.reason,a.pipeline_stage))}"><div class="itemhead"><div><span class="pill">${Number(a.score || 0)} priority</span><h3>${esc(a.title)}</h3><div class="meta">${esc(a.name)} · ${esc(a.equipment || 'Equipment not specified')}</div><div class="meta">${esc(a.reason)}</div></div><div class="actions"><button class="mini" onclick="openLeadDetail(${a.lead_id})">Open</button><button class="mini" onclick="coachActionEncoded('${payload}')">🧠 AI</button>${completeButton}${a.phone ? `<a class="mini" href="tel:${encodeURIComponent(a.phone)}">☎ Call</a>` : ''}</div></div></div>`
+            }
+            function renderPriorityLists(actions) {
+                const html = actions.slice(0, 15).map((action, index) => actionHTML(action, index)).join('') || '<div class="empty">No open actions. Add a lead or inventory.</div>';
+                ['todayActions', 'winActions', 'aiQueue'].forEach(id => {
+                    const target = $(id);
+                    if (target) target.innerHTML = html;
+                });
             }
             function coachActionEncoded(payload) { coachAction(JSON.parse(decodeURIComponent(payload))) }
             function completeActionEncoded(payload) { completeAction(JSON.parse(decodeURIComponent(payload))) }
@@ -2749,7 +2754,7 @@
                 $('deals').innerHTML = d.map(x => `<div class="item"><div class="itemhead"><div><h3>${esc(x.customer)}</h3><div class="meta">${esc(x.equipment || '')} · ${money(x.sale_price)} sale · <b>${money(x.gross_profit)} gross</b></div></div><span class="pill">${new Date(x.sold_at).toLocaleDateString()}</span></div></div>`).join('') || '<div class="empty">No closed deals yet.</div>'
             }
             function renderAIQueue() {
-                $('aiQueue').innerHTML = (state.plan?.actions || []).slice(0, 10).map( (a, i) => actionHTML(a, i)).join('') || '<div class="empty">No priority actions.</div>'
+                renderPriorityLists(state.plan?.actions || [])
             }
             function openGoals() {
                 const g = state.plan?.goals || {};
