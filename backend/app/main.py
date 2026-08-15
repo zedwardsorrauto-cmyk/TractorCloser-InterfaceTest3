@@ -15,7 +15,7 @@ from openai import OpenAI
 from .config import get_settings
 from .database import Base, SessionLocal, engine, get_db
 from .models import AuditEvent, Deal, Lead, LeadActivity, Role, SystemSetting, User, Workspace, WorkspaceRecord
-from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadProfileUpdate, LeadResponse, LoginRequest, LoginResponse, PasswordSetupRequest, SalesManagerRequest, SalesManagerResponse, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
+from .schemas import ActivityCreate, ActivityResponse, ClosingCoachRequest, ClosingCoachResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadProfileUpdate, LeadResponse, LoginRequest, LoginResponse, ManagerBriefResponse, PasswordSetupRequest, SalesManagerRequest, SalesManagerResponse, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="TractorCloser API", version="0.1.0")
@@ -44,6 +44,32 @@ def user_response(user: User) -> UserResponse:
 
 def audit(db: Session, actor: User | None, event_type: str, detail: str = "", workspace_id: int | None = None) -> None:
     db.add(AuditEvent(actor_user_id=actor.id if actor else None, workspace_id=workspace_id or (actor.workspace_id if actor else None), event_type=event_type, detail=detail))
+
+
+def run_openai_coaching(instructions: str, context: dict, settings) -> str:
+    try:
+        response = OpenAI(api_key=settings.openai_api_key).responses.create(
+            model=settings.openai_model,
+            instructions=instructions,
+            input=json.dumps(context),
+            max_output_tokens=700,
+            store=False,
+        )
+        return (response.output_text or "").strip()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Sales Manager could not complete that request. Please try again.")
+
+
+def json_coaching_output(raw: str) -> dict:
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[-1]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Sales Manager returned an unreadable brief. Please try again.")
 
 
 def seed_initial_workspace() -> None:
@@ -147,6 +173,34 @@ def seed_initial_workspace() -> None:
                 {"name": "Parts Department", "phone": "", "email": "parts@tractorbob.com", "source": "Business email", "source_reference": "Shared inbox", "message": "Can you send the updated internal parts schedule?", "equipment": "", "classification": "Likely non-sales", "confidence": "High", "status": "Pending"},
             ]
             db.add_all([WorkspaceRecord(workspace_id=workspace.id, record_type="intake", payload=sample) for sample in intake_samples])
+        # Enrich only the marked test records so the AI workspace demo has
+        # realistic context without touching any customer-created data.
+        if not db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace.id, WorkspaceRecord.record_type == "ai_test_context")):
+            context_by_name = {
+                "Jordan Miller (Test)": [
+                    ("call note", "Customer wants to compare a trade-in value before deciding. Asked about a 60-month option."),
+                    ("quote viewed", "Opened the YM347 quote yesterday afternoon; no response since."),
+                ],
+                "Casey Rodriguez (Test)": [
+                    ("appointment", "On-site demo is scheduled for Friday at 10:30 AM. Customer is bringing spouse."),
+                ],
+                "Morgan Lee (Test)": [
+                    ("quote sent", "Compact tractor package quote sent with loader, delivery, and warranty options."),
+                    ("note", "Primary concern is staying under a comfortable monthly payment."),
+                ],
+                "Noah Bennett (Test)": [
+                    ("incoming inquiry", "Marketplace lead asked whether the Yanmar UTV is still available and mentioned a possible trade."),
+                ],
+                "Avery Collins (Test)": [
+                    ("incoming inquiry", "Needs a compact tractor for five acres. Requested pricing by text today."),
+                ],
+            }
+            for lead_name, activities in context_by_name.items():
+                lead = db.scalar(select(Lead).where(Lead.workspace_id == workspace.id, Lead.name == lead_name, Lead.is_test_data.is_(True)))
+                if lead:
+                    for activity_type, body in activities:
+                        db.add(LeadActivity(workspace_id=workspace.id, lead_id=lead.id, type=activity_type, body=body))
+            db.add(WorkspaceRecord(workspace_id=workspace.id, record_type="ai_test_context", payload={"seeded": True}))
         db.commit()
     finally:
         db.close()
@@ -264,6 +318,73 @@ Give: (1) the highest-priority next move, (2) why it matters, (3) a short sugges
     audit(db, user, "sales_manager_requested", f"Customer {lead.id}", require_workspace(user))
     db.commit()
     return SalesManagerResponse(advice=advice)
+
+
+@app.post("/api/ai", response_model=ClosingCoachResponse)
+def closing_coach(payload: ClosingCoachRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ClosingCoachResponse:
+    """On-demand coaching for the AI page. No customer record is modified."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Sales Manager is not configured yet")
+    details = payload.details.strip()
+    if not details:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Describe the sales situation first")
+    instructions = """You are TractorCloser Sales Manager, a direct and practical dealership sales coach.
+Answer the salesperson's specific situation with concise guidance: acknowledge the real concern, identify the best next move, give one or two useful phrases to use verbally, and name a fallback approach.
+Do not claim you searched the web or accessed systems outside the supplied information. Do not draft a full customer message unless the salesperson explicitly asks for one."""
+    result = run_openai_coaching(instructions, {"request_type": payload.type, "salesperson_situation": details}, settings)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Sales Manager returned no coaching. Please try again.")
+    audit(db, user, "closing_coach_requested", payload.type, require_workspace(user))
+    db.commit()
+    return ClosingCoachResponse(result=result)
+
+
+@app.post("/api/ai/sales-manager", response_model=ManagerBriefResponse)
+def sales_manager_brief(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ManagerBriefResponse:
+    """Generate a concise, role-scoped manager brief from the current CRM workspace."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Sales Manager is not configured yet")
+    workspace_id = require_workspace(user)
+    leads = list(db.scalars(lead_query_for_user(user).order_by(Lead.updated_at.desc()).limit(60)))
+    lead_ids = [lead.id for lead in leads]
+    activities = []
+    if lead_ids:
+        activities = list(db.scalars(
+            select(LeadActivity).where(LeadActivity.workspace_id == workspace_id, LeadActivity.lead_id.in_(lead_ids))
+            .order_by(LeadActivity.created_at.desc()).limit(40)
+        ))
+    deals = list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id).order_by(Deal.sold_at.desc()).limit(20)))
+    records = list(db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type.in_(["followup", "appointment"])).order_by(WorkspaceRecord.updated_at.desc()).limit(30)))
+    lead_context = [
+        {"id": lead.id, "name": lead.name, "stage": lead.pipeline_stage, "product": lead.equipment, "source": lead.source, "budget": lead.budget, "follow_up_enabled": lead.follow_up_enabled, "response_sent": lead.response_sent}
+        for lead in leads
+    ]
+    context = {
+        "workspace_scope": "team" if user.role in {Role.ADMIN, Role.DEVELOPER} else "assigned customers only",
+        "leads": lead_context,
+        "recent_activities": [
+            {"lead_id": activity.lead_id, "type": activity.type, "note": activity.body, "created_at": activity.created_at.isoformat() if activity.created_at else ""}
+            for activity in activities
+        ],
+        "recent_deals": [{"customer": deal.customer, "equipment": deal.equipment, "gross": deal.gross_profit, "sold_at": deal.sold_at.isoformat() if deal.sold_at else ""} for deal in deals],
+        "open_followups_and_appointments": [record.payload for record in records],
+    }
+    instructions = """You are TractorCloser Sales Manager: direct, concise, and commercially practical.
+Review only the supplied CRM workspace context. Do not invent facts, claim to contact customers, or take actions.
+Return valid JSON only, with this exact shape:
+{"headline":"short heading","summary":"2-3 sentence overview","priorities":[{"title":"short action","reason":"why now","next_action":"specific next step"}],"risks":["risk"],"coaching":"one concise coaching observation"}
+Include 3 to 5 priorities, ordered most important first. Focus on stalled opportunities, unanswered inquiries, imminent appointments, and follow-ups. Never include a response draft unless explicitly requested."""
+    raw = run_openai_coaching(instructions, context, settings)
+    brief = json_coaching_output(raw)
+    try:
+        result = ManagerBriefResponse(**brief)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Sales Manager returned an incomplete brief. Please try again.")
+    audit(db, user, "manager_brief_requested", f"{len(leads)} customers analyzed", workspace_id)
+    db.commit()
+    return result
 
 
 @app.get("/api/leads", response_model=list[LeadResponse])

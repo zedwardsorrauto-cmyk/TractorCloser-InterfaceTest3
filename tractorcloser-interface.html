@@ -2790,7 +2790,7 @@
                 insertOriginalInquiry(l, needsResponse);
                 $('modalBody').querySelectorAll('input, textarea, select').forEach(field => field.addEventListener('input', () => setProfileDirty(true)));
                 $('modalBody').querySelectorAll('select, input[type="checkbox"], input[type="date"]').forEach(field => field.addEventListener('change', () => setProfileDirty(true)));
-                insertConversationPanel(l);
+                if (needsResponse) insertConversationPanel(l);
                 loadActivities(id)
             }
             function askSalesManager(id) {
@@ -2854,7 +2854,7 @@
                 const sourceIcon = /facebook|marketplace|instagram|social/.test(lowerSource) ? '💬' : /missed call|phone|call/.test(lowerSource) ? '☎' : /website|web/.test(lowerSource) ? '🌐' : /email/.test(lowerSource) ? '✉' : /in-person|walk/.test(lowerSource) ? '👋' : '✦';
                 const sourcePill = `<span class="pill">${sourceIcon} ${esc(source)}</span>`;
                 const unread = needsResponse ? '<span class="unread-inquiry"><span class="unread-dot"></span>Unread · reply needed</span>' : '';
-                const replyButton = '<button class="mini" style="background:var(--brand);color:#fff" onclick="openResponseComposer()">Reply</button>';
+                const replyButton = needsResponse ? '<button class="mini" style="background:var(--brand);color:#fff" onclick="openResponseComposer()">Reply</button>' : '';
                 const sourceCard = inquiry ? `<div class="card" id="originalInquiry" style="margin:14px 0"><div class="itemhead"><div class="inquiry-heading"><strong>First inquiry</strong>${unread}</div><div class="actions">${sourcePill}${replyButton}</div></div><p class="inquiry-copy" style="margin-bottom:0">${esc(inquiry)}</p></div>` : `<div class="card" id="originalInquiry" style="margin:12px 0"><div class="itemhead"><div><strong>Lead source</strong><div class="meta" style="margin-top:4px">${sourcePill}</div></div>${replyButton}</div></div>`;
                 $('modalBody').querySelector('.field')?.insertAdjacentHTML('afterend', sourceCard);
             }

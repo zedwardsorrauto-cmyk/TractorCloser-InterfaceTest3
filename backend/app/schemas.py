@@ -90,6 +90,29 @@ class SalesManagerResponse(BaseModel):
     advice: str
 
 
+class ClosingCoachRequest(BaseModel):
+    type: str = "Sales coaching"
+    details: str
+
+
+class ClosingCoachResponse(BaseModel):
+    result: str
+
+
+class ManagerPriority(BaseModel):
+    title: str
+    reason: str
+    next_action: str
+
+
+class ManagerBriefResponse(BaseModel):
+    headline: str
+    summary: str
+    priorities: list[ManagerPriority]
+    risks: list[str]
+    coaching: str
+
+
 class LeadResponse(BaseModel):
     id: int
     name: str
