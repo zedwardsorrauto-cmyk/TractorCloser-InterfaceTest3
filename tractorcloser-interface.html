@@ -1500,7 +1500,7 @@
                     <div class="manager">
                         <h2 style="margin-top:0">🤖 AI Sales Manager</h2>
                         <p class="muted">Let the manager rank the work, identify risk and tell you what to do next.</p>
-                        <button class="btn" style="background:#fff;color:#3b1c82" onclick="go('ai');runManager()">Run manager</button>
+                        <button class="btn" style="background:#fff;color:#3b1c82" onclick="go('ai');runManager()">Run Manager Brief</button>
                     </div>
                 </div>
                 <div class="section card">
@@ -1631,13 +1631,13 @@
                         <h1>🤖 AI Sales Manager</h1>
                         <p>Manager, coach, objection handler and next-move engine.</p>
                     </div>
-                    <button class="btn brand" onclick="runManager()">Run manager</button>
+                    <button class="btn brand" onclick="runManager()">Run Manager Brief</button>
                 </div>
                 <div class="ai-grid section">
                     <div class="manager">
                         <h2>Manager Brief</h2>
                         <div id="managerResult">
-                            <p class="muted">Run the manager after loading your current CRM context.</p>
+                            <p class="muted">Run the manager after loading your current CRM context.</p><button class="btn" style="background:#fff;color:#3b1c82" onclick="runManager()">Run Manager Brief</button>
                         </div>
                     </div>
                     <div class="card">
@@ -2385,10 +2385,33 @@
                     toast(action === 'lockdown' ? 'Security lockdown enabled' : 'Sign-in restored')
                 } catch (e) { toast(e.message) }
             }
+            function buildPriorityActions() {
+                const now = Date.now();
+                const activeLeads = state.leads.filter(lead => !['Sold', 'Lost'].includes(lead.pipeline_stage || lead.status || ''));
+                const actions = [];
+                const add = (lead, type, score, title, reason, recordId=null) => actions.push({lead_id: lead.id, type, score, title, reason, name: lead.name, equipment: lead.equipment || '', phone: lead.phone || '', record_id: recordId});
+                activeLeads.forEach(lead => {
+                    const source = String(lead.source || '').toLowerCase();
+                    const canReply = Boolean(lead.phone || lead.email || /meta|facebook|marketplace|instagram|social/.test(source));
+                    const needsReply = Boolean(lead.original_inquiry) && canReply && (lead.pipeline_stage || lead.status || '') === 'New' && !lead.response_sent;
+                    if (needsReply) add(lead, 'reply', 100, 'Respond to new inquiry', `${lead.source || 'New'} inquiry is waiting for a first response.`);
+                    const followup = leadFollowupRecord(lead);
+                    if (followup?.due_at) {
+                        const hoursUntil = (new Date(followup.due_at).getTime() - now) / 3600000;
+                        if (hoursUntil <= 24) add(lead, 'followup', hoursUntil <= 0 ? 96 : 88, hoursUntil <= 0 ? 'Complete overdue follow-up' : 'Complete upcoming follow-up', followup.notes || `Follow-up is due ${new Date(followup.due_at).toLocaleString()}.`, followup.id);
+                    }
+                    const stage = lead.pipeline_stage || lead.status || '';
+                    if (stage === 'Appointment' || stage === 'Demo') add(lead, 'appointment', 84, stage === 'Demo' ? 'Prepare for customer demo' : 'Confirm upcoming appointment', `${stage} stage needs a clear customer commitment.`, null);
+                    if (stage === 'Quote') add(lead, 'quote', 78, 'Advance active quote', 'Confirm what is preventing a decision and set the next commitment.', null);
+                    if (stage === 'Negotiating') add(lead, 'close', 82, 'Move negotiating deal forward', 'Clarify the remaining objection and ask for a decision path.', null);
+                });
+                return actions.sort((a, b) => Number(b.score) - Number(a.score) || a.name.localeCompare(b.name)).slice(0, 15);
+            }
             function renderWin() {
                 const p = state.plan;
                 if (!p)
                     return;
+                p.actions = buildPriorityActions();
                 if (demoMode && p.summary) {
                     p.summary.month_gross = state.deals.reduce((sum, deal) => sum + Number(deal.gross_profit || 0), 0);
                     p.summary.month_units = state.deals.length;
@@ -2427,7 +2450,8 @@
             }
             function actionHTML(a, i) {
                 const payload = encodeURIComponent(JSON.stringify(a));
-                return `<div class="item priority-action" data-search="${esc(searchable(a.name,a.phone,a.equipment,a.title,a.reason,a.pipeline_stage))}"><div class="itemhead"><div><span class="pill">${esc(a.pipeline_stage || 'Lead')} · ${Number(a.score || 0)} priority</span><h3>${esc(a.title)}</h3><div class="meta">${esc(a.name)} · ${esc(a.equipment || 'Equipment not specified')}</div><div class="meta">${esc(a.reason)}</div></div><div class="actions"><button class="mini" onclick="coachActionEncoded('${payload}')">🧠 AI</button><button class="mini" onclick="completeActionEncoded('${payload}')">✓ Done</button>${a.phone ? `<a class="mini" href="tel:${encodeURIComponent(a.phone)}">☎ Call</a>` : '<button class="mini" disabled aria-label="No phone number">☎ N/A</button>'}</div></div></div>`
+                const completeButton = a.type === 'followup' && a.record_id ? `<button class="mini" onclick="completeActionEncoded('${payload}')">✓ Done</button>` : '';
+                return `<div class="item priority-action" data-search="${esc(searchable(a.name,a.phone,a.equipment,a.title,a.reason,a.pipeline_stage))}"><div class="itemhead"><div><span class="pill">${Number(a.score || 0)} priority</span><h3>${esc(a.title)}</h3><div class="meta">${esc(a.name)} · ${esc(a.equipment || 'Equipment not specified')}</div><div class="meta">${esc(a.reason)}</div></div><div class="actions"><button class="mini" onclick="openLeadDetail(${a.lead_id})">Open</button><button class="mini" onclick="coachActionEncoded('${payload}')">🧠 AI</button>${completeButton}${a.phone ? `<a class="mini" href="tel:${encodeURIComponent(a.phone)}">☎ Call</a>` : ''}</div></div></div>`
             }
             function coachActionEncoded(payload) { coachAction(JSON.parse(decodeURIComponent(payload))) }
             function completeActionEncoded(payload) { completeAction(JSON.parse(decodeURIComponent(payload))) }
@@ -2778,7 +2802,8 @@
                 const soldDate = existingDeal?.sold_at ? new Date(existingDeal.sold_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
                 const lockedSold = stage === 'Sold' && Boolean(existingDeal);
                 const owner = leadOwnerLabel(l);
-                const needsResponse = Boolean(l.original_inquiry) && stage === 'New' && !l.response_sent;
+                const hasReplyChannel = Boolean(l.phone || l.email || /meta|facebook|marketplace|instagram|social/i.test(l.source || ''));
+                const needsResponse = Boolean(l.original_inquiry) && hasReplyChannel && stage === 'New' && !l.response_sent;
                 const profileField = (label, value, field, full=false) => `<div class="profile-info${full ? ' full' : ''}" data-profile-field="${field}"><span class="profile-key">${label}</span><strong class="profile-value">${esc(value || 'Not provided')}</strong><button class="profile-edit" onclick="editProfileField(${id}, '${field}')" aria-label="Edit ${label}">✎</button></div>`;
                 const profileOverview = `<section class="profile-overview">${profileField('Customer name', l.name, 'name')}${profileField('Assigned to', owner, 'assigned', false)}${profileField('Phone', l.phone, 'phone')}${profileField('Email', l.email, 'email')}${profileField('Interested product', l.equipment, 'equipment', true)}</section>`;
                 const stageControl = lockedSold ? `<div class="field"><label>Pipeline stage</label><div class="meta"><span class="pill">Sold</span> Revert the sale to change this stage.</div></div>` : `<div class="field"><label>Pipeline stage</label><select id="detailStage" onchange="toggleSoldFields()">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
@@ -3325,37 +3350,22 @@
                 }
             }
             async function completeAction(a) {
-                if (!confirm(`Mark ${a.name} as worked?`))
+                if (a.type !== 'followup' || !a.record_id) {
+                    openLeadDetail(a.lead_id);
+                    return
+                }
+                if (!confirm(`Mark ${a.name}'s follow-up complete?`))
                     return;
                 try {
-                    await api('/api/win-today/complete', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            lead_id: a.lead_id,
-                            action_type: a.type,
-                            body: `Win Today completed: ${a.title}`
-                        })
-                    });
+                    await api('/api/followups/' + a.record_id, {method: 'PATCH', body: JSON.stringify({status: 'Completed'})});
                     await loadAll();
-                    toast('Action completed')
+                    toast('Follow-up completed')
                 } catch (e) {
                     toast(e.message)
                 }
             }
             async function coachAction(a) {
-                openModal('AI Next Move', '<p>Thinking…</p>');
-                try {
-                    const r = await api('/api/win-today/ai', {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            action: a,
-                            mode: a.type
-                        })
-                    });
-                    openModal(r.headline || 'AI Next Move', `<p><b>Why now:</b> ${esc(r.why_now)}</p><p><b>Next action:</b> ${esc(r.next_action)}</p><div class="card"><b>Message</b><p>${esc(r.message).replace(/\n/g, '<br>')}</p><button class="btn brand" onclick='navigator.clipboard.writeText(${JSON.stringify(r.message || '')});toast("Copied")'>Copy</button></div><p><b>Fallback:</b> ${esc(r.fallback_message)}</p>`)
-                } catch (e) {
-                    openModal('AI unavailable', `<p>${esc(e.message)}</p>`)
-                }
+                askSalesManager(a.lead_id)
             }
             async function coachFree() {
                 const text = $('coachText').value.trim();
@@ -3383,7 +3393,7 @@
                         method: 'POST',
                         body: JSON.stringify({})
                     });
-                    $('managerResult').innerHTML = `<h3>${esc(r.headline || 'Manager brief')}</h3><p>${esc(r.summary || '')}</p><h3>Top priorities</h3><ol>${(r.priorities || []).map(x => `<li><b>${esc(x.title)}</b><br>${esc(x.reason)}<br><span class="muted">Next: ${esc(x.next_action)}</span></li>`).join('')}</ol><h3>Risks</h3><ul>${(r.risks || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul><h3>Manager coaching</h3><p>${esc(r.coaching || '')}</p>`
+                    $('managerResult').innerHTML = `<h3>${esc(r.headline || 'Manager brief')}</h3><p>${esc(r.summary || '')}</p><h3>Top priorities</h3><ol>${(r.priorities || []).map(x => `<li><b>${esc(x.title)}</b><br>${esc(x.reason)}<br><span class="muted">Next: ${esc(x.next_action)}</span></li>`).join('')}</ol><h3>Risks</h3><ul>${(r.risks || []).map(x => `<li>${esc(x)}</li>`).join('')}</ul><h3>Manager coaching</h3><p>${esc(r.coaching || '')}</p><button class="btn" style="background:#fff;color:#3b1c82" onclick="runManager()">Run Manager Brief</button>`
                 } catch (e) {
                     $('managerResult').innerHTML = '<p>' + esc(e.message) + '</p>'
                 }
