@@ -4,6 +4,7 @@ import os
 import zipfile
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -758,7 +759,12 @@ def put_settings_record(payload: dict, user: User = Depends(get_current_user), d
 @app.get("/api/metrics")
 def metrics(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
     workspace_id = require_workspace(user)
-    now = datetime.now(timezone.utc)
+    workspace = db.get(Workspace, workspace_id)
+    try:
+        local_zone = ZoneInfo(workspace.timezone if workspace else "America/Chicago")
+    except Exception:
+        local_zone = timezone.utc
+    now = datetime.now(local_zone)
     leads = list(db.scalars(lead_query_for_user(user)))
     lead_ids = {lead.id for lead in leads}
     deals = list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id)))
@@ -766,7 +772,27 @@ def metrics(user: User = Depends(get_current_user), db: Session = Depends(get_db
         deals = [deal for deal in deals if deal.lead_id in lead_ids]
     appointments = list(db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "appointment")))
     followups = list(db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "followup")))
-    month_deals = [deal for deal in deals if deal.sold_at and deal.sold_at.year == now.year and deal.sold_at.month == now.month]
+    def local_deal_time(deal: Deal) -> datetime | None:
+        if not deal.sold_at:
+            return None
+        value = deal.sold_at
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(local_zone)
+    def to_local(value: datetime | None) -> datetime | None:
+        if not value:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.astimezone(local_zone)
+    def scheduled_in_current_month(item: WorkspaceRecord) -> bool:
+        try:
+            starts_at = datetime.fromisoformat(str(item.payload.get("starts_at", "")).replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        starts_at = starts_at.replace(tzinfo=local_zone) if starts_at.tzinfo is None else starts_at.astimezone(local_zone)
+        return starts_at.year == now.year and starts_at.month == now.month
+    month_deals = [deal for deal in deals if (sold_at := local_deal_time(deal)) and sold_at.year == now.year and sold_at.month == now.month]
     if user.role == Role.SALESPERSON:
         appointments = [item for item in appointments if str(item.payload.get("lead_id")) in {str(lead_id) for lead_id in lead_ids}]
         followups = [item for item in followups if str(item.payload.get("lead_id")) in {str(lead_id) for lead_id in lead_ids}]
@@ -777,9 +803,9 @@ def metrics(user: User = Depends(get_current_user), db: Session = Depends(get_db
         "month_units": len(month_deals),
         "month_gross": sum(deal.gross_profit for deal in month_deals),
         "month_sales_volume": sum(deal.sale_price for deal in month_deals),
-        "month_appointments": sum(1 for item in appointments if item.payload.get("status") == "Scheduled"),
+        "month_appointments": sum(1 for item in appointments if item.payload.get("status") == "Scheduled" and scheduled_in_current_month(item)),
         "appointments_today": appointments_today,
-        "month_contacts": len(leads),
+        "month_contacts": sum(1 for lead in leads if (created_at := to_local(lead.created_at)) and created_at.year == now.year and created_at.month == now.month),
         "overdue_followups": overdue_followups,
     }
 
@@ -789,7 +815,12 @@ def team_overview(user: User = Depends(get_current_user), db: Session = Depends(
     if user.role not in {Role.ADMIN, Role.DEVELOPER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     workspace_id = require_workspace(user)
-    now = datetime.now(timezone.utc)
+    workspace = db.get(Workspace, workspace_id)
+    try:
+        local_zone = ZoneInfo(workspace.timezone if workspace else "America/Chicago")
+    except Exception:
+        local_zone = timezone.utc
+    now = datetime.now(local_zone)
     members = list(db.scalars(select(User).where(User.workspace_id == workspace_id, User.active.is_(True)).order_by(User.email)))
     leads = list(db.scalars(select(Lead).where(Lead.workspace_id == workspace_id)))
     deals = list(db.scalars(select(Deal).where(Deal.workspace_id == workspace_id)))
@@ -798,7 +829,12 @@ def team_overview(user: User = Depends(get_current_user), db: Session = Depends(
     actor_ids = {item.actor_user_id for item in activities if item.actor_user_id is not None}
     activity_users = list(db.scalars(select(User).where(User.id.in_(actor_ids)))) if actor_ids else []
     user_names = {member.id: member.email for member in activity_users}
-    month_deals = [deal for deal in deals if deal.sold_at and deal.sold_at.year == now.year and deal.sold_at.month == now.month]
+    def local_deal_time(deal: Deal) -> datetime | None:
+        if not deal.sold_at:
+            return None
+        value = deal.sold_at.replace(tzinfo=timezone.utc) if deal.sold_at.tzinfo is None else deal.sold_at
+        return value.astimezone(local_zone)
+    month_deals = [deal for deal in deals if (sold_at := local_deal_time(deal)) and sold_at.year == now.year and sold_at.month == now.month]
     rows = []
     for member in members:
         owned = [lead for lead in leads if lead.assigned_user_id == member.id]

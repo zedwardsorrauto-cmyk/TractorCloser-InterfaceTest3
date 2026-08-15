@@ -1780,6 +1780,26 @@
                 const date = new Date(value);
                 return Number.isNaN(date.getTime()) ? 'Not recorded' : date.toLocaleString([], {month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'});
             }
+            function currentMonthDeals() {
+                const now = new Date();
+                return state.deals.filter(deal => {
+                    const soldAt = new Date(deal.sold_at);
+                    return !Number.isNaN(soldAt.getTime()) && soldAt.getFullYear() === now.getFullYear() && soldAt.getMonth() === now.getMonth();
+                });
+            }
+            function isCurrentMonth(value) {
+                const date = new Date(value);
+                const now = new Date();
+                return !Number.isNaN(date.getTime()) && date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+            }
+            function syncDemoMonthMetrics() {
+                if (!demoMode || !state.plan?.summary) return;
+                const monthDeals = currentMonthDeals();
+                state.plan.summary.month_gross = monthDeals.reduce((sum, deal) => sum + Number(deal.gross_profit || 0), 0);
+                state.plan.summary.month_units = monthDeals.length;
+                state.plan.summary.month_appointments = state.appointments.filter(appointment => appointment.status === 'Scheduled' && isCurrentMonth(appointment.starts_at)).length;
+                state.plan.summary.month_contacts = state.leads.filter(lead => isCurrentMonth(lead.created_at)).length;
+            }
             function setCalcMode(mode) {
                 calculatorMode = mode;
                 $('financeMode').classList.toggle('active', mode === 'finance');
@@ -2421,10 +2441,7 @@
                     return;
                 p.actions = buildPriorityActions();
                 if (demoMode && p.summary) {
-                    p.summary.month_gross = state.deals.reduce((sum, deal) => sum + Number(deal.gross_profit || 0), 0);
-                    p.summary.month_units = state.deals.length;
-                    p.summary.month_appointments = state.appointments.filter(appointment => appointment.status !== 'Cancelled').length;
-                    p.summary.month_contacts = state.leads.length;
+                    syncDemoMonthMetrics();
                 }
                 const s = p.summary || {};
                 $('tActive').textContent = s.active_leads || 0;
@@ -3036,10 +3053,7 @@
                         delete l.previous_pipeline_stage;
                         l.follow_up_enabled = true;
                         addLeadActivity(l, 'sale reverted', 'Recorded sale was reverted and the customer was returned to the pipeline.');
-                        if (state.plan?.summary) {
-                            state.plan.summary.month_gross = state.deals.reduce((sum, item) => sum + Number(item.gross_profit || 0), 0);
-                            state.plan.summary.month_units = state.deals.length
-                        }
+                        syncDemoMonthMetrics();
                         setProfileDirty(false); closeModal(); renderPipeline(); renderCRM(); renderDeals(); renderWin(); toast('Sale reverted and customer returned to the pipeline');
                         return
                     }
@@ -3074,10 +3088,7 @@
                             existingDeal.gross_profit = Number($('detailSoldGross').value || 0);
                             existingDeal.sold_at = new Date($('detailSoldDate').value + 'T12:00:00').toISOString();
                         }
-                        if (state.plan?.summary) {
-                            state.plan.summary.month_gross = state.deals.reduce((sum, deal) => sum + Number(deal.gross_profit || 0), 0);
-                            state.plan.summary.month_units = state.deals.length;
-                        }
+                        syncDemoMonthMetrics();
                         setProfileDirty(false); closeModal(); renderPipeline(); renderCRM(); renderDeals(); renderWin();
                         if (nextStage === 'Sold' && !existingDeal) celebrateWin();
                         toast(nextStage === 'Sold' && !existingDeal ? 'Customer marked sold — deal added' : 'Customer updates saved');
@@ -3264,10 +3275,7 @@
                         }
                         state.deals.unshift({id: Date.now() + 1, lead_id: lead.id, sold_by_user_id: state.currentUser?.id || null, customer, equipment: equipment || 'Equipment to be confirmed', sale_price: Number($('dPrice').value || 0), gross_profit: Number($('dProfit').value || 0), sold_at: new Date().toISOString()});
                         addLeadActivity(lead, 'deal recorded', `Sold for ${money($('dPrice').value)} with ${money($('dProfit').value)} total gross.`);
-                        if (state.plan?.summary) {
-                            state.plan.summary.month_gross = state.deals.reduce((sum, deal) => sum + Number(deal.gross_profit || 0), 0);
-                            state.plan.summary.month_units = state.deals.length
-                        }
+                        syncDemoMonthMetrics();
                         closeModal(); renderPipeline(); renderCRM(); renderDeals(); renderWin(); celebrateWin(); toast('Deal recorded and customer linked');
                         return
                     }
