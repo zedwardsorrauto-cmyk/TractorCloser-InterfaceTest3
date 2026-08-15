@@ -1370,10 +1370,14 @@
             }
 
             @media(max-width: 520px) {
-                .top { padding: 19px 14px 16px }
-                .toprow { gap: 10px }
+                .top { padding: 20px 12px 17px }
+                .toprow { width: 100%; gap: 10px }
+                .toprow > div:first-child { min-width: 0 }
+                .top .actions { width: auto; flex: 0 0 auto; flex-wrap: nowrap; align-items: center; gap: 8px }
+                .top .actions .mini { padding: 10px 11px; white-space: nowrap }
                 .brand { font-size: 23px }
-                .sub { font-size: 13px }
+                .brand,.sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+                .sub { margin-top: 4px; font-size: 13px }
                 .header-notification { width: 40px; height: 40px }
                 .avatar { width: 44px; height: 44px; font-size: 13px }
                 .wrap { padding: 14px 12px }
@@ -1393,7 +1397,7 @@
                 .proposal-option b { font-size: 18px }
                 .four-cell { min-height: 96px; padding: 12px }
                 .four-cell b { font-size: clamp(18px,6vw,23px) }
-                .proposal-actions,.actions { width: 100% }
+                .proposal-actions { width: 100% }
                 .proposal-actions { flex-direction: column }
                 .proposal-actions .btn,.proposal-actions .mini { width: 100% }
                 .modal { padding: 8px }
