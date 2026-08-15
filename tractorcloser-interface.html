@@ -2976,15 +2976,18 @@
             }
             function insertConversationPanel(lead) {
                 const source = lead.source || 'Manual entry';
+                const isMissedCall = /missed call/i.test(source);
                 const channelOptions = [];
-                if (lead.phone) {
+                if (isMissedCall) {
+                    channelOptions.push('<option value="Callback">Callback</option>');
+                } else if (lead.phone) {
                     channelOptions.push('<option value="Text message">Text message</option>');
                     channelOptions.push('<option value="Callback">Callback</option>');
                 }
                 if (lead.email) channelOptions.push('<option value="Email">Email</option>');
                 if (/meta|facebook|marketplace|instagram|social/i.test(source)) channelOptions.push('<option value="Social reply">Social reply</option>');
                 if (!channelOptions.length) channelOptions.push('<option value="Internal follow-up">Internal follow-up</option>');
-                const composer = `<section class="card" id="responseComposer" style="margin:14px 0" hidden><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.</div></div><span class="pill">Safe test mode</span></div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${channelOptions.join('')}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Send</button></div></section>`;
+                const composer = `<section class="card" id="responseComposer" style="margin:14px 0" hidden><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.</div></div><span class="pill">Safe test mode</span></div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${channelOptions.join('')}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button id="composerDraftButton" class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button id="composerPrimaryButton" class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Send</button></div></section>`;
                 const inquiry = $('originalInquiry');
                 if (inquiry) inquiry.insertAdjacentHTML('afterend', composer);
                 else $('modalBody').insertAdjacentHTML('afterbegin', composer);
@@ -3003,19 +3006,27 @@
                 const label = $('composerLabel');
                 const hint = $('composerHint');
                 const body = $('composerBody');
+                const primary = $('composerPrimaryButton');
+                const draft = $('composerDraftButton');
                 if (!label || !hint || !body) return;
                 if (channel === 'Callback') {
                     label.textContent = 'Callback outcome';
                     body.placeholder = 'What should be covered or what happened on the call?';
                     hint.textContent = 'This logs a callback activity only. It does not place a phone call.';
+                    if (primary) primary.textContent = 'Save call activity';
+                    if (draft) draft.textContent = 'Save call notes';
                 } else if (channel === 'Internal follow-up') {
                     label.textContent = 'Follow-up note';
                     body.placeholder = 'Capture the next step while contact details are still being collected…';
                     hint.textContent = 'This lead has no reachable contact method yet. Save a follow-up note and add details later.';
+                    if (primary) primary.textContent = 'Save follow-up';
+                    if (draft) draft.textContent = 'Save draft';
                 } else {
                     label.textContent = channel + ' draft';
                     body.placeholder = 'Write the response you want the customer to receive…';
                     hint.textContent = 'Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.';
+                    if (primary) primary.textContent = 'Send';
+                    if (draft) draft.textContent = 'Save draft';
                 }
             }
             async function saveResponseActivity(leadId, status) {
@@ -3028,7 +3039,7 @@
                 if (canMoveToContacted && status === 'sent' && currentStage !== 'Contacted') return confirmResponseSend(leadId, currentStage, channel);
                 const moveToContacted = status === 'sent-contacted';
                 const loggedStatus = ['sent-contacted', 'sent-only'].includes(status) ? 'sent' : status;
-                const type = channel === 'Callback' ? 'callback logged (simulated)' : `${channel.toLowerCase()} ${loggedStatus} (simulated)`;
+                const type = channel === 'Callback' ? 'callback activity recorded' : `${channel.toLowerCase()} ${loggedStatus} (simulated)`;
                 const sentResponse = canMoveToContacted && loggedStatus === 'sent';
                 try {
                     if (demoMode) {
@@ -3064,8 +3075,9 @@
             }
             function confirmResponseSend(leadId, currentStage, channel) {
                 if ($('textSendConfirm')) return;
-                const action = channel === 'Callback' ? 'Log callback' : 'Send';
-                $('modalBody').insertAdjacentHTML('beforeend', `<div class="profile-discard" id="textSendConfirm"><div class="profile-discard-card"><h3 style="margin-top:0">Move customer to Contacted?</h3><p>This simulated ${esc(channel.toLowerCase())} will be saved in the timeline. You can also move this customer from <strong>${esc(currentStage)}</strong> to <strong>Contacted</strong>.</p><div class="actions"><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${leadId}, 'sent-contacted')">${action} &amp; move to Contacted</button><button class="mini" onclick="saveResponseActivity(${leadId}, 'sent-only')">${action} only</button><button class="mini" onclick="cancelTextSendConfirm()">Cancel</button></div></div></div>`);
+                const action = channel === 'Callback' ? 'Save call activity' : 'Send';
+                const detail = channel === 'Callback' ? 'This callback activity will be saved to the customer timeline.' : `This simulated ${esc(channel.toLowerCase())} will be saved in the timeline.`;
+                $('modalBody').insertAdjacentHTML('beforeend', `<div class="profile-discard" id="textSendConfirm"><div class="profile-discard-card"><h3 style="margin-top:0">Move customer to Contacted?</h3><p>${detail} You can also move this customer from <strong>${esc(currentStage)}</strong> to <strong>Contacted</strong>.</p><div class="actions"><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${leadId}, 'sent-contacted')">${action} &amp; move to Contacted</button><button class="mini" onclick="saveResponseActivity(${leadId}, 'sent-only')">${action} only</button><button class="mini" onclick="cancelTextSendConfirm()">Cancel</button></div></div></div>`);
             }
             function cancelTextSendConfirm() { $('textSendConfirm')?.remove() }
             function addLeadActivity(lead, type, body) {
