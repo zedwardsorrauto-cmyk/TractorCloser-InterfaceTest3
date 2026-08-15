@@ -10,10 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from sqlalchemy import inspect, select, text
 from sqlalchemy.orm import Session, joinedload
+from openai import OpenAI
 
+from .config import get_settings
 from .database import Base, SessionLocal, engine, get_db
 from .models import AuditEvent, Deal, Lead, LeadActivity, Role, SystemSetting, User, Workspace, WorkspaceRecord
-from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadProfileUpdate, LeadResponse, LoginRequest, LoginResponse, PasswordSetupRequest, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
+from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadProfileUpdate, LeadResponse, LoginRequest, LoginResponse, PasswordSetupRequest, SalesManagerRequest, SalesManagerResponse, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="TractorCloser API", version="0.1.0")
@@ -206,6 +208,62 @@ def lead_query_for_user(user: User):
     if user.role == Role.SALESPERSON:
         statement = statement.where(Lead.assigned_user_id == user.id)
     return statement
+
+
+@app.post("/api/leads/{lead_id}/sales-manager", response_model=SalesManagerResponse)
+def ask_sales_manager(lead_id: int, payload: SalesManagerRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> SalesManagerResponse:
+    """Return on-demand coaching from CRM context only; it never changes CRM data."""
+    settings = get_settings()
+    if not settings.openai_api_key:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Sales Manager is not configured yet")
+
+    lead = db.scalar(lead_query_for_user(user).where(Lead.id == lead_id))
+    if not lead:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found")
+
+    activities = list(db.scalars(
+        select(LeadActivity)
+        .where(LeadActivity.workspace_id == require_workspace(user), LeadActivity.lead_id == lead.id)
+        .order_by(LeadActivity.created_at.desc())
+        .limit(12)
+    ))
+    context = {
+        "customer": {
+            "name": lead.name,
+            "stage": lead.pipeline_stage,
+            "interested_product": lead.equipment,
+            "source": lead.source,
+            "first_inquiry": lead.original_inquiry,
+            "budget": lead.budget,
+            "follow_up_enabled": lead.follow_up_enabled,
+        },
+        "recent_activity": [
+            {"type": activity.type, "note": activity.body, "created_at": activity.created_at.isoformat() if activity.created_at else ""}
+            for activity in activities
+        ],
+        "salesperson_question": payload.question.strip(),
+    }
+    instructions = """You are TractorCloser Sales Manager: a direct, practical dealership sales coach.
+Use only the CRM context supplied. Do not claim to have contacted the customer, researched the web, or completed any CRM action.
+Never draft a customer response unless the salesperson specifically asks for one. Be concise and specific.
+Give: (1) the highest-priority next move, (2) why it matters, (3) a short suggested activity or follow-up to confirm. Do not be overly friendly or generic."""
+    try:
+        client = OpenAI(api_key=settings.openai_api_key)
+        response = client.responses.create(
+            model=settings.openai_model,
+            instructions=instructions,
+            input=json.dumps(context),
+            max_output_tokens=420,
+            store=False,
+        )
+        advice = (response.output_text or "").strip()
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Sales Manager could not complete that request. Please try again.")
+    if not advice:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Sales Manager returned no recommendation. Please try again.")
+    audit(db, user, "sales_manager_requested", f"Customer {lead.id}", require_workspace(user))
+    db.commit()
+    return SalesManagerResponse(advice=advice)
 
 
 @app.get("/api/leads", response_model=list[LeadResponse])

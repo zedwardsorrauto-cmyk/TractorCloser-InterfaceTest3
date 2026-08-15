@@ -2784,7 +2784,7 @@
                 const stageControl = lockedSold ? `<div class="field"><label>Pipeline stage</label><div class="meta"><span class="pill">Sold</span> Revert the sale to change this stage.</div></div>` : `<div class="field"><label>Pipeline stage</label><select id="detailStage" onchange="toggleSoldFields()">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
                 const soldSummary = `<div class="card"><div class="itemhead"><h3 style="margin:0">Close the deal</h3>${existingDeal ? `<button class="danger-pill" onclick="confirmRevertDeal(${id})">Revert</button>` : ''}</div><div class="deal-summary"><div><span class="meta">Sold price</span><strong>${money(existingDeal?.sale_price ?? l.budget ?? 0)}</strong></div><div><span class="meta">Total gross</span><strong>${money(existingDeal?.gross_profit ?? 0)}</strong></div><div><span class="meta">Date sold</span><strong>${new Date(soldDate + 'T12:00:00').toLocaleDateString()}</strong></div><div class="full"><span class="meta">Model or unit sold</span><strong>${esc(existingDeal?.equipment || l.equipment || 'Equipment to be confirmed')}</strong></div></div></div>`;
                 const soldForm = `<div class="card"><h3 style="margin-top:0">Close the deal</h3><div class="formgrid"><div class="field"><label>Sold price</label><input id="detailSoldPrice" type="number" value="${existingDeal?.sale_price ?? l.budget ?? ''}"></div><div class="field"><label>Total gross</label><input id="detailSoldGross" type="number" value="${existingDeal?.gross_profit ?? ''}"></div><div class="field"><label>Date sold</label><input id="detailSoldDate" type="date" value="${soldDate}"></div><div class="field full"><label>Model or unit sold</label><input id="detailSoldEquipment" value="${esc(existingDeal?.equipment || l.equipment || '')}"></div></div></div>`;
-                openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button><button class="mini" onclick="showDealPlan(${id})">✦ Deal Plan</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.amount)} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
+                openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="askSalesManager(${id})">✦ Ask Sales Manager</button><button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button><button class="mini" onclick="showDealPlan(${id})">✦ Deal Plan</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.amount)} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
                 activeProfileId = id;
                 setProfileDirty(false);
                 insertOriginalInquiry(l, needsResponse);
@@ -2792,6 +2792,32 @@
                 $('modalBody').querySelectorAll('select, input[type="checkbox"], input[type="date"]').forEach(field => field.addEventListener('change', () => setProfileDirty(true)));
                 insertConversationPanel(l);
                 loadActivities(id)
+            }
+            function askSalesManager(id) {
+                const lead = state.leads.find(x => String(x.id) === String(id));
+                if (!lead) return;
+                openModal('Ask Sales Manager', `<p class="muted">Get direct coaching based on this customer’s CRM record. Nothing is changed or sent automatically.</p><div class="field"><label>What do you want help with?</label><textarea id="salesManagerQuestion" placeholder="Example: What is the best next move to keep this deal moving?"></textarea></div><div class="actions"><button class="btn brand" onclick="runSalesManager(${id})">Get coaching</button><button class="btn light" onclick="openLeadDetail(${id})">Back to customer</button></div>`, true)
+            }
+            async function runSalesManager(id) {
+                const question = $('salesManagerQuestion')?.value.trim() || 'What is the best next move to advance this deal?';
+                try {
+                    const result = await api('/api/leads/' + id + '/sales-manager', {method: 'POST', body: JSON.stringify({question})});
+                    const note = result.advice || 'No recommendation was returned.';
+                    const safeNote = esc(note).replace(/\n/g, '<br>');
+                    openModal('Sales Manager guidance', `<div class="manager"><strong>Recommended next move</strong><p style="margin:10px 0 0;line-height:1.55">${safeNote}</p></div><p class="muted">Review this guidance before deciding what to record. The Sales Manager has not changed the customer record.</p><div class="actions"><button class="btn brand" onclick="saveSalesManagerNote(${id})">Add coaching note to timeline</button><button class="btn light" onclick="openLeadDetail(${id})">Back to customer</button></div>`, true);
+                    window.salesManagerAdvice = note;
+                } catch (e) { toast(e.message) }
+            }
+            async function saveSalesManagerNote(id) {
+                const note = String(window.salesManagerAdvice || '').trim();
+                if (!note) return toast('Ask the Sales Manager first');
+                if (!confirm('Add this Sales Manager guidance to the customer timeline?')) return;
+                try {
+                    await api('/api/leads/' + id + '/activities', {method: 'POST', body: JSON.stringify({type: 'Sales Manager guidance', body: note})});
+                    window.salesManagerAdvice = '';
+                    toast('Coaching note added');
+                    openLeadDetail(id);
+                } catch (e) { toast(e.message) }
             }
             function editProfileField(id, field) {
                 if (field === 'assigned') return toast('Use the Team page to change lead assignment');

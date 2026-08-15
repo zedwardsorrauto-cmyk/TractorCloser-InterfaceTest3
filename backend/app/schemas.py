@@ -82,6 +82,14 @@ class ActivityCreate(BaseModel):
     body: str
 
 
+class SalesManagerRequest(BaseModel):
+    question: str = ""
+
+
+class SalesManagerResponse(BaseModel):
+    advice: str
+
+
 class LeadResponse(BaseModel):
     id: int
     name: str
