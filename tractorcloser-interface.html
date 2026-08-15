@@ -81,6 +81,22 @@
                 place-items: center;
                 font-weight: 850
             }
+            .header-notification {
+                position: relative;
+                width: 44px;
+                height: 44px;
+                border: 1px solid rgba(255,255,255,.28);
+                border-radius: 50%;
+                background: rgba(255,255,255,.1);
+                color: #fff;
+                display: grid;
+                place-items: center;
+                cursor: pointer
+            }
+            .header-notification:hover { background: rgba(255,255,255,.18) }
+            .header-notification .app-icon { width: 22px; height: 22px; margin: 0; border-color: currentColor }
+            .notification-badge { display: inline-grid; min-width: 20px; height: 20px; place-items: center; border-radius: 999px; background: #fee4e2; color: var(--danger); font-size: 11px; font-weight: 900 }
+            .header-notification .notification-badge { position: absolute; top: -5px; right: -5px; margin: 0 }
 
             .mobile-drawer,.drawer-backdrop { display: none }
 
@@ -396,6 +412,19 @@
                 background: #fff;
                 box-shadow: 0 18px 48px rgba(0,0,0,.22)
             }
+            .profile-overview { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; margin: 2px 0 14px }
+            .profile-info { position: relative; min-width: 0; padding: 11px 38px 11px 12px; border: 1px solid var(--line); border-radius: 13px; background: #fafcfb }
+            .profile-info.full { grid-column: 1 / -1 }
+            .profile-key { display: block; margin-bottom: 4px; color: var(--muted); font-size: 11px; font-weight: 850; letter-spacing: .06em; text-transform: uppercase }
+            .profile-value { display: block; overflow: hidden; color: var(--ink); font-size: 14px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap }
+            .profile-edit { position: absolute; top: 50%; right: 9px; width: 26px; height: 26px; border: 0; border-radius: 8px; background: #eee9ff; color: var(--brand); cursor: pointer; font-size: 15px; font-weight: 900; line-height: 1; opacity: 0; pointer-events: none; transform: translateY(-50%); transition: opacity .15s ease, background .15s ease }
+            .profile-info:hover .profile-edit,.profile-info:focus-within .profile-edit { opacity: 1; pointer-events: auto }
+            .profile-edit:hover { background: #dfd5ff }
+            .profile-inline-input { width: 100%; margin-top: 4px; padding: 8px 9px; border: 1px solid #b8a6ef; border-radius: 9px; color: var(--ink); font: inherit; font-size: 13px; outline: 0 }
+            .profile-inline-actions { display: flex; gap: 6px; margin-top: 8px }
+            .inquiry-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 7px }
+            .unread-inquiry { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 999px; background: #fff1f0; color: #b42318; font-size: 11px; font-weight: 850 }
+            .unread-dot { width: 7px; height: 7px; border-radius: 50%; background: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.13) }
 
             .deal-summary {
                 display: grid;
@@ -405,7 +434,7 @@
             }
 
             .deal-summary strong { display: block; margin-top: 3px; font-size: 16px }
-            .deal-summary .full { grid-column: 1 / -1 }
+                .deal-summary .full { grid-column: 1 / -1 }
 
             .stagegrid {
                 display: grid;
@@ -974,6 +1003,30 @@
                 .desktop-tabs .nav-bottom { display: grid; gap: 5px; flex: 0 0 auto; padding-top: 8px; background: var(--card) }
             }
 
+            /* Mid-size laptops and resized desktop windows keep the desktop
+               workflow, but use an icon rail so the content never feels like
+               it has been magnified into a narrow remaining column. */
+            @media (min-width: 851px) and (max-width: 1080px) {
+                body { padding-left: 86px }
+                .desktop-tabs { width: 72px; padding: 78px 8px 16px; align-items: center }
+                .desktop-tabs::before { content: 'TC'; top: 31px; left: 0; width: 100%; text-align: center; font-size: 11px; letter-spacing: .8px }
+                .desktop-tabs .tabbtn { justify-content: center; gap: 0; padding: 12px 0; font-size: 0; text-align: center }
+                .desktop-tabs .tabbtn .app-icon,
+                .desktop-tabs .tabbtn .nav-icon { margin: 0; font-size: 13px }
+                .desktop-tabs .tabbtn .app-icon.home-mark { font-size: 27px }
+                .desktop-tabs .tabbtn .app-icon.spark { font-size: 20px }
+                .desktop-tabs .tabbtn .app-icon.svg-mark { width: 24px; height: 24px }
+                .desktop-tabs .nav-utility { padding: 11px 0; position: relative }
+                .desktop-tabs .notification-badge { position: absolute; top: 4px; right: 4px; min-width: 17px; height: 17px; margin: 0; font-size: 9px }
+                .desktop-tabs .notification-chevron { display: none }
+                .desktop-tabs .rail-notifications { padding: 2px 0 5px; max-width: 56px }
+                .desktop-tabs .rail-notification { padding: 7px 4px; font-size: 0; text-align: center; border-left: 0; border-top: 2px solid #c9b8ff; border-radius: 0 0 8px 8px }
+                .desktop-tabs .rail-notification strong { font-size: 10px; line-height: 1.15 }
+                .desktop-tabs .nav-bottom { width: 100%; justify-items: center }
+                .toprow,.wrap { max-width: 100% }
+                .utilitybar { max-width: 100% }
+            }
+
             .page {
                 display: none
             }
@@ -1126,6 +1179,9 @@
                 .grid2,.formgrid {
                     grid-template-columns: 1fr
                 }
+                .profile-overview { grid-template-columns: 1fr }
+                .profile-info.full { grid-column: auto }
+                .profile-edit { display: none }
 
                 .hero {
                     align-items: flex-start;
@@ -1313,7 +1369,7 @@
                     <div class="brand"><span class="app-icon round" style="vertical-align:2px">T</span>TractorCloser</div>
                     <div class="sub" id="greeting">Win the next deal.</div>
                 </div>
-                <div class="actions"><button class="mini" id="signInButton" style="background:var(--brand);color:#fff" onclick="login()">Sign in</button><button class="avatar" id="avatar" onclick="openMobileDrawer()" aria-label="Open account menu">TC</button></div>
+                <div class="actions"><button class="mini" id="signInButton" style="background:var(--brand);color:#fff" onclick="login()">Sign in</button><button class="header-notification" onclick="openNotifications()" aria-label="Open notifications"><span class="app-icon round">!</span><span class="notification-badge">3</span></button><button class="avatar" id="avatar" onclick="openMobileDrawer()" aria-label="Open account menu">TC</button></div>
             </div>
         </header>
         <div id="supportBanner" class="support-banner" hidden><span id="supportBannerText">Developer Support Mode</span><button class="mini" onclick="exitSupportMode()">Exit support mode</button></div>
@@ -1579,12 +1635,6 @@
                 <button id="developerAuditNav" class="tabbtn" data-page="developer-audit" onclick="go('developer-audit')" hidden><span class="app-icon">⌁</span>Audit</button>
                 <button id="developerSecurityNav" class="tabbtn" data-page="developer-security" onclick="go('developer-security')" hidden><span class="app-icon">⚠</span>Security</button>
                 <button class="tabbtn" data-page="calculator" onclick="go('calculator')"><span class="app-icon">#</span>Calculator</button>
-                <button class="tabbtn nav-utility" onclick="toggleRailNotifications()"><span class="nav-icon app-icon round">!</span>Notifications<span class="notification-badge">3</span><span id="notificationChevron" class="notification-chevron closed">⌄</span></button>
-                <div id="railNotifications" class="rail-notifications" hidden>
-                    <button class="rail-notification" onclick="openNotificationTarget(1)"><strong>Follow-up overdue</strong>Jordan Miller</button>
-                    <button class="rail-notification" onclick="openNotificationTarget(2)"><strong>Demo tomorrow</strong>Casey Rodriguez</button>
-                    <button class="rail-notification" onclick="openNotificationTarget(3)"><strong>Quote viewed</strong>Morgan Lee</button>
-                </div>
             </div>
             <div class="nav-bottom">
                 <button class="tabbtn nav-utility" onclick="openAccount()"><span class="nav-icon app-icon svg-mark round"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span>Account</button>
@@ -2329,7 +2379,9 @@
             }
             function leadOwnerLabel(lead) {
                 const owner = (state.team?.members || []).find(member => String(member.id) === String(lead.assigned_user_id));
-                return owner ? memberLabel(owner.email) : 'Unassigned';
+                if (owner) return memberLabel(owner.email);
+                if (state.currentUser && lead.assigned_user_id != null && String(state.currentUser.id) === String(lead.assigned_user_id)) return memberLabel(state.currentUser.email);
+                return 'Unassigned';
             }
             function openPipelineStage(stage) {
                 const selectedOwner = $('pipelineOwnerFilter')?.value || 'all';
@@ -2635,20 +2687,63 @@
                 const existingDeal = state.deals.find(d => String(d.lead_id) === String(id));
                 const soldDate = existingDeal?.sold_at ? new Date(existingDeal.sold_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
                 const lockedSold = stage === 'Sold' && Boolean(existingDeal);
+                const owner = leadOwnerLabel(l);
+                const needsResponse = Boolean(l.original_inquiry) && stage === 'New';
+                const profileField = (label, value, field, full=false) => `<div class="profile-info${full ? ' full' : ''}" data-profile-field="${field}"><span class="profile-key">${label}</span><strong class="profile-value">${esc(value || 'Not provided')}</strong><button class="profile-edit" onclick="editProfileField(${id}, '${field}')" aria-label="Edit ${label}">✎</button></div>`;
+                const profileOverview = `<section class="profile-overview">${profileField('Customer name', l.name, 'name')}${profileField('Assigned to', owner, 'assigned', false)}${profileField('Phone', l.phone, 'phone')}${profileField('Email', l.email, 'email')}${profileField('Interested product', l.equipment, 'equipment', true)}</section>`;
                 const stageControl = lockedSold ? `<div class="field"><label>Pipeline stage</label><div class="meta"><span class="pill">Sold</span> Revert the sale to change this stage.</div></div>` : `<div class="field"><label>Pipeline stage</label><select id="detailStage" onchange="toggleSoldFields()">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
                 const soldSummary = `<div class="card"><div class="itemhead"><h3 style="margin:0">Close the deal</h3>${existingDeal ? `<button class="danger-pill" onclick="confirmRevertDeal(${id})">Revert</button>` : ''}</div><div class="deal-summary"><div><span class="meta">Sold price</span><strong>${money(existingDeal?.sale_price ?? l.budget ?? 0)}</strong></div><div><span class="meta">Total gross</span><strong>${money(existingDeal?.gross_profit ?? 0)}</strong></div><div><span class="meta">Date sold</span><strong>${new Date(soldDate + 'T12:00:00').toLocaleDateString()}</strong></div><div class="full"><span class="meta">Model or unit sold</span><strong>${esc(existingDeal?.equipment || l.equipment || 'Equipment to be confirmed')}</strong></div></div></div>`;
                 const soldForm = `<div class="card"><h3 style="margin-top:0">Close the deal</h3><div class="formgrid"><div class="field"><label>Sold price</label><input id="detailSoldPrice" type="number" value="${existingDeal?.sale_price ?? l.budget ?? ''}"></div><div class="field"><label>Total gross</label><input id="detailSoldGross" type="number" value="${existingDeal?.gross_profit ?? ''}"></div><div class="field"><label>Date sold</label><input id="detailSoldDate" type="date" value="${soldDate}"></div><div class="field full"><label>Model or unit sold</label><input id="detailSoldEquipment" value="${esc(existingDeal?.equipment || l.equipment || '')}"></div></div></div>`;
-                openModal(l.name, `<div class="meta">${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || '')} · ${esc(stage)}</div>${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button><button class="mini" onclick="showDealPlan(${id})">✦ Deal Plan</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.amount)} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
+                openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button><button class="mini" onclick="showDealPlan(${id})">✦ Deal Plan</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.amount)} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
                 activeProfileId = id;
                 setProfileDirty(false);
+                insertOriginalInquiry(l, needsResponse);
                 $('modalBody').querySelectorAll('input, textarea, select').forEach(field => field.addEventListener('input', () => setProfileDirty(true)));
                 $('modalBody').querySelectorAll('select, input[type="checkbox"], input[type="date"]').forEach(field => field.addEventListener('change', () => setProfileDirty(true)));
                 insertConversationPanel(l);
                 loadActivities(id)
             }
-            function insertConversationPanel(lead) {
+            function editProfileField(id, field) {
+                if (field === 'assigned') return toast('Use the Team page to change lead assignment');
+                const lead = state.leads.find(x => String(x.id) === String(id));
+                const card = document.querySelector(`[data-profile-field="${field}"]`);
+                if (!lead || !card) return;
+                const labels = {name: 'Customer name', phone: 'Phone', email: 'Email', equipment: 'Interested product'};
+                const inputType = field === 'email' ? 'email' : 'text';
+                card.innerHTML = `<span class="profile-key">${labels[field]}</span><input class="profile-inline-input" id="profileFieldInput" type="${inputType}" value="${esc(lead[field] || '')}" ${field === 'name' ? 'required' : ''}><div class="profile-inline-actions"><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveProfileField(${id}, '${field}')">Save</button><button class="mini" onclick="openLeadDetail(${id})">Cancel</button></div>`;
+                $('profileFieldInput')?.focus();
+            }
+            async function saveProfileField(id, field) {
+                const lead = state.leads.find(x => String(x.id) === String(id));
+                const value = $('profileFieldInput')?.value.trim() || '';
+                const labels = {name: 'Customer name', phone: 'Phone', email: 'Email', equipment: 'Interested product'};
+                if (field === 'name' && !value) return toast('Customer name cannot be blank');
+                try {
+                    if (demoMode) {
+                        lead[field] = value;
+                        addLeadActivity(lead, 'customer details updated', `Updated ${labels[field].toLowerCase()}.`);
+                    } else {
+                        const updated = await api('/api/leads/' + id, {method: 'PATCH', body: JSON.stringify({[field]: value})});
+                        Object.assign(lead, updated);
+                    }
+                    renderPipeline(); renderCRM(); renderWin();
+                    openLeadDetail(id);
+                    toast(labels[field] + ' saved');
+                } catch (e) { toast(e.message) }
+            }
+            function insertOriginalInquiry(lead, needsResponse=false) {
                 const source = lead.source || 'Manual entry';
                 const inquiry = lead.original_inquiry || '';
+                const lowerSource = source.toLowerCase();
+                const sourceIcon = /facebook|marketplace|instagram|social/.test(lowerSource) ? '💬' : /missed call|phone|call/.test(lowerSource) ? '☎' : /website|web/.test(lowerSource) ? '🌐' : /email/.test(lowerSource) ? '✉' : /in-person|walk/.test(lowerSource) ? '👋' : '✦';
+                const sourcePill = `<span class="pill">${sourceIcon} ${esc(source)}</span>`;
+                const unread = needsResponse ? '<span class="unread-inquiry"><span class="unread-dot"></span>Unread · reply needed</span>' : '';
+                const replyButton = '<button class="mini" style="background:var(--brand);color:#fff" onclick="openResponseComposer()">Reply</button>';
+                const sourceCard = inquiry ? `<div class="card" id="originalInquiry" style="margin:14px 0"><div class="itemhead"><div class="inquiry-heading"><strong>First inquiry</strong>${unread}</div><div class="actions">${sourcePill}${replyButton}</div></div><p style="margin-bottom:0">${esc(inquiry)}</p></div>` : `<div class="card" id="originalInquiry" style="margin:12px 0"><div class="itemhead"><div><strong>Lead source</strong><div class="meta" style="margin-top:4px">${sourcePill}</div></div>${replyButton}</div></div>`;
+                $('modalBody').querySelector('.profile-overview')?.insertAdjacentHTML('afterend', sourceCard);
+            }
+            function insertConversationPanel(lead) {
+                const source = lead.source || 'Manual entry';
                 const channelOptions = [];
                 if (lead.phone) {
                     channelOptions.push('<option value="Text message">Text message</option>');
@@ -2657,11 +2752,19 @@
                 if (lead.email) channelOptions.push('<option value="Email">Email</option>');
                 if (/meta|facebook|marketplace|instagram|social/i.test(source)) channelOptions.push('<option value="Social reply">Social reply</option>');
                 if (!channelOptions.length) channelOptions.push('<option value="Internal follow-up">Internal follow-up</option>');
-                const originalInquiry = inquiry ? `<div class="card" style="margin:14px 0"><div class="itemhead"><strong>Original inquiry</strong><span class="pill">${esc(source)}</span></div><p style="margin-bottom:0">${esc(inquiry)}</p></div>` : `<div class="meta" style="margin:12px 0">Lead source: <strong>${esc(source)}</strong></div>`;
-                const composer = `<section class="card" id="responseComposer" style="margin:14px 0"><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or log a simulated send. Nothing is sent outside TractorCloser yet.</div></div><span class="pill">Safe test mode</span></div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${channelOptions.join('')}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Mark sent</button></div></section>`;
-                const list = $('activityList');
-                list.insertAdjacentHTML('beforebegin', `${originalInquiry}${composer}<hr><h3>Customer timeline</h3>`);
+                const composer = `<section class="card" id="responseComposer" style="margin:14px 0" hidden><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.</div></div><span class="pill">Safe test mode</span></div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${channelOptions.join('')}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Send</button></div></section>`;
+                const inquiry = $('originalInquiry');
+                if (inquiry) inquiry.insertAdjacentHTML('afterend', composer);
+                else $('modalBody').insertAdjacentHTML('afterbegin', composer);
+                $('activityList').insertAdjacentHTML('beforebegin', '<hr><h3>Customer timeline</h3>');
                 updateComposerHint();
+            }
+            function openResponseComposer() {
+                const composer = $('responseComposer');
+                if (!composer) return;
+                composer.hidden = false;
+                composer.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+                $('composerBody')?.focus();
             }
             function updateComposerHint() {
                 const channel = $('composerChannel')?.value || 'Internal follow-up';
@@ -2680,26 +2783,51 @@
                 } else {
                     label.textContent = channel + ' draft';
                     body.placeholder = 'Write the response you want the customer to receive…';
-                    hint.textContent = 'Save a draft or log a simulated send. Nothing is sent outside TractorCloser yet.';
+                    hint.textContent = 'Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.';
                 }
             }
             async function saveResponseActivity(leadId, status) {
                 const channel = $('composerChannel')?.value || 'Internal follow-up';
                 const body = $('composerBody')?.value.trim() || '';
                 if (!body) return toast(channel === 'Callback' ? 'Add a callback note first' : 'Write a message first');
-                const type = channel === 'Callback' ? 'callback logged (simulated)' : `${channel.toLowerCase()} ${status} (simulated)`;
+                const lead = state.leads.find(x => String(x.id) === String(leadId));
+                const currentStage = lead?.pipeline_stage || lead?.status || 'New';
+                if (channel === 'Text message' && status === 'sent' && currentStage !== 'Contacted') return confirmTextSend(leadId, currentStage);
+                const moveToContacted = status === 'sent-contacted';
+                const loggedStatus = ['sent-contacted', 'sent-only'].includes(status) ? 'sent' : status;
+                const type = channel === 'Callback' ? 'callback logged (simulated)' : `${channel.toLowerCase()} ${loggedStatus} (simulated)`;
                 try {
                     if (demoMode) {
-                        const lead = state.leads.find(x => String(x.id) === String(leadId));
                         if (lead) addLeadActivity(lead, type, body);
                     } else {
                         await api('/api/leads/' + leadId + '/activities', {method: 'POST', body: JSON.stringify({type, body})});
                     }
+                    if (moveToContacted) {
+                        if (demoMode) {
+                            if (lead) {
+                                const priorStage = lead.pipeline_stage || lead.status || 'New';
+                                lead.pipeline_stage = 'Contacted';
+                                addLeadActivity(lead, 'stage changed', `Moved from ${priorStage} to Contacted after a text response.`);
+                            }
+                        } else {
+                            await api('/api/leads/' + leadId + '/pipeline', {method: 'PATCH', body: JSON.stringify({pipeline_stage: 'Contacted'})});
+                            if (lead) lead.pipeline_stage = 'Contacted';
+                        }
+                        const stageSelect = $('detailStage');
+                        if (stageSelect) stageSelect.value = 'Contacted';
+                        renderPipeline(); renderCRM(); renderWin();
+                    }
+                    $('textSendConfirm')?.remove();
                     $('composerBody').value = '';
                     await loadActivities(leadId);
-                    toast(channel === 'Callback' ? 'Callback logged' : status === 'draft' ? 'Draft saved' : 'Simulated send recorded');
+                    toast(moveToContacted ? 'Simulated text sent and customer moved to Contacted' : channel === 'Callback' ? 'Callback logged' : status === 'draft' ? 'Draft saved' : 'Simulated send recorded');
                 } catch (e) { toast(e.message) }
             }
+            function confirmTextSend(leadId, currentStage) {
+                if ($('textSendConfirm')) return;
+                $('modalBody').insertAdjacentHTML('beforeend', `<div class="profile-discard" id="textSendConfirm"><div class="profile-discard-card"><h3 style="margin-top:0">Move customer to Contacted?</h3><p>This simulated text will be saved in the timeline. You can also move this customer from <strong>${esc(currentStage)}</strong> to <strong>Contacted</strong>.</p><div class="actions"><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${leadId}, 'sent-contacted')">Send &amp; move to Contacted</button><button class="mini" onclick="saveResponseActivity(${leadId}, 'sent-only')">Send only</button><button class="mini" onclick="cancelTextSendConfirm()">Cancel</button></div></div></div>`);
+            }
+            function cancelTextSendConfirm() { $('textSendConfirm')?.remove() }
             function addLeadActivity(lead, type, body) {
                 lead.activities = [...(lead.activities || []), {type, body, created_at: new Date().toISOString()}]
             }
