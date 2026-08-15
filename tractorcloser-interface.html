@@ -3014,20 +3014,26 @@
                     body.placeholder = 'What should be covered or what happened on the call?';
                     hint.textContent = 'This logs a callback activity only. It does not place a phone call.';
                     if (primary) primary.textContent = 'Save call activity';
-                    if (draft) draft.textContent = 'Save call notes';
+                    if (draft) { draft.textContent = 'Cancel'; draft.onclick = cancelResponseComposer; }
                 } else if (channel === 'Internal follow-up') {
                     label.textContent = 'Follow-up note';
                     body.placeholder = 'Capture the next step while contact details are still being collected…';
                     hint.textContent = 'This lead has no reachable contact method yet. Save a follow-up note and add details later.';
                     if (primary) primary.textContent = 'Save follow-up';
-                    if (draft) draft.textContent = 'Save draft';
+                    if (draft) { draft.textContent = 'Cancel'; draft.onclick = cancelResponseComposer; }
                 } else {
                     label.textContent = channel + ' draft';
                     body.placeholder = 'Write the response you want the customer to receive…';
                     hint.textContent = 'Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.';
                     if (primary) primary.textContent = 'Send';
-                    if (draft) draft.textContent = 'Save draft';
+                    if (draft) { draft.textContent = 'Save draft'; draft.onclick = () => saveResponseActivity(activeProfileId, 'draft'); }
                 }
+            }
+            function cancelResponseComposer() {
+                const composer = $('responseComposer');
+                if (!composer) return;
+                $('composerBody').value = '';
+                composer.hidden = true;
             }
             async function saveResponseActivity(leadId, status) {
                 const channel = $('composerChannel')?.value || 'Internal follow-up';
