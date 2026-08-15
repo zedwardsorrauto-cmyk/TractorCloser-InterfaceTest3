@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .database import Base, SessionLocal, engine, get_db
 from .models import AuditEvent, Deal, Lead, LeadActivity, Role, SystemSetting, User, Workspace, WorkspaceRecord
-from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadResponse, LoginRequest, LoginResponse, PasswordSetupRequest, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
+from .schemas import ActivityCreate, ActivityResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadProfileUpdate, LeadResponse, LoginRequest, LoginResponse, PasswordSetupRequest, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="TractorCloser API", version="0.1.0")
@@ -264,6 +264,27 @@ def assign_lead(lead_id: int, payload: LeadAssignmentUpdate, user: User = Depend
     detail = f"{lead.name} assigned" if payload.assigned_user_id else f"{lead.name} unassigned"
     db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, actor_user_id=user.id, type="lead assigned", body=detail))
     audit(db, user, "lead_assignment_changed", detail, lead.workspace_id)
+    db.commit()
+    db.refresh(lead)
+    return lead
+
+
+@app.patch("/api/leads/{lead_id}", response_model=LeadResponse)
+def update_lead_profile(lead_id: int, payload: LeadProfileUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Lead:
+    lead = get_workspace_lead(lead_id, user, db)
+    updates = payload.model_dump(exclude_none=True)
+    if "name" in updates and not updates["name"].strip():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Customer name cannot be blank")
+    changed = []
+    for field, value in updates.items():
+        value = value.strip()
+        if getattr(lead, field) != value:
+            setattr(lead, field, value)
+            changed.append(field.replace("_", " "))
+    if changed:
+        detail = "Updated " + ", ".join(changed) + "."
+        db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, actor_user_id=user.id, type="customer details updated", body=detail))
+        audit(db, user, "lead_profile_updated", f"{lead.name}: {', '.join(changed)}", lead.workspace_id)
     db.commit()
     db.refresh(lead)
     return lead

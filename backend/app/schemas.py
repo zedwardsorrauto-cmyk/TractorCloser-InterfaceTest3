@@ -70,6 +70,13 @@ class LeadAssignmentUpdate(BaseModel):
     assigned_user_id: int | None = None
 
 
+class LeadProfileUpdate(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    equipment: str | None = None
+
+
 class ActivityCreate(BaseModel):
     type: str = "note"
     body: str
