@@ -75,6 +75,8 @@ class LeadProfileUpdate(BaseModel):
     phone: str | None = None
     email: str | None = None
     equipment: str | None = None
+    contact_consent: str | None = None
+    preferred_contact_channel: str | None = None
 
 
 class ActivityCreate(BaseModel):
@@ -121,6 +123,9 @@ class LeadResponse(BaseModel):
     equipment: str
     source: str
     source_reference: str
+    external_source_id: str
+    contact_consent: str
+    preferred_contact_channel: str
     original_inquiry: str
     budget: int
     pipeline_stage: str

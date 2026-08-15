@@ -1615,6 +1615,14 @@
                 <div class="section card" id="securityCenter"><div class="empty">Loading security controls…</div></div>
                 <div class="section card"><h2 style="margin-top:0">What lockdown does</h2><p class="muted">It temporarily blocks non-Developer sign-ins and revokes all active sessions. Developer accounts can still sign in to investigate and restore access.</p></div>
             </section>
+            <section id="page-integrations" class="page">
+                <div class="hero"><div><h1>Integration Health</h1><p>Connection readiness, intake safeguards, and the final checks before live dealer data.</p></div><button class="btn light" onclick="loadIntegrationHealth()">↻ Refresh</button></div>
+                <div id="integrationHealth" class="grid grid3 section"><div class="empty">Loading integration readiness…</div></div>
+                <div class="grid grid2 section">
+                    <div class="card"><h2 style="margin-top:0">Safe intake rules</h2><div id="integrationRules" class="list"></div></div>
+                    <div class="card"><h2 style="margin-top:0">Before going live</h2><div class="list"><div class="item"><strong>Role and access test</strong><div class="meta">Confirm salespeople can only see their assigned customers.</div></div><div class="item"><strong>Backup and restore test</strong><div class="meta">Download a workspace backup and verify it opens before importing real data.</div></div><div class="item"><strong>Consent and opt-out review</strong><div class="meta">Confirm the dealership’s messaging policy before enabling any sending provider.</div></div><div class="item"><strong>Set the allowed website origin</strong><div class="meta">Move the API out of testing mode by restricting browser access to the live TractorCloser site.</div></div></div></div>
+                </div>
+            </section>
             <section id="page-inventory" class="page">
                 <div class="hero">
                     <div>
@@ -1705,6 +1713,7 @@
                 <button class="tabbtn" data-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span>AI</button>
                 <button class="tabbtn" data-page="deals" onclick="go('deals')"><span class="app-icon">$</span>Deals</button>
                 <button id="teamNav" class="tabbtn" data-page="team" onclick="go('team')" hidden><span class="app-icon">♙</span>Team</button>
+                <button id="integrationNav" class="tabbtn" data-page="integrations" onclick="go('integrations')" hidden><span class="app-icon">⌁</span>Integrations</button>
                 <button id="developerAuditNav" class="tabbtn" data-page="developer-audit" onclick="go('developer-audit')" hidden><span class="app-icon">⌁</span>Audit</button>
                 <button id="developerSecurityNav" class="tabbtn" data-page="developer-security" onclick="go('developer-security')" hidden><span class="app-icon">⚠</span>Security</button>
                 <button class="tabbtn" data-page="calculator" onclick="go('calculator')"><span class="app-icon">#</span>Calculator</button>
@@ -1998,7 +2007,7 @@
                 openModal('Quick action', `<div class="list"><button class="item" onclick="closeModal();openLead()"><h3>+ Add customer</h3><div class="meta">Start a new customer profile.</div></button><button class="item" onclick="closeModal();openDeal()"><h3>Record deal</h3><div class="meta">Log a completed sale, including a walk-in customer.</div></button><button class="item" onclick="closeModal();openAppointment()"><h3>Schedule appointment</h3><div class="meta">Create the next customer commitment.</div></button><button class="item" onclick="closeModal();chooseQuoteCustomer()"><h3>Create quote</h3><div class="meta">Build a cash or finance proposal.</div></button></div>`)
             }
             function openAccount() {
-                openModal('Account', `<div class="item"><h3>TractorCloser preview</h3><div class="meta">Account preferences, team access, and notification settings will be managed here when the backend is connected.</div></div>`)
+                openModal('Account', `<div class="item"><h3>${esc(state.currentUser?.email || 'TractorCloser account')}</h3><div class="meta">Your role and workspace access are controlled by your dealership administrator. Personal notification preferences will appear here when messaging providers are connected.</div></div>`)
             }
             function openMobileDrawer() {
                 if (window.matchMedia('(max-width: 850px)').matches) {
@@ -2011,7 +2020,7 @@
                 $('drawerBackdrop').classList.remove('open')
             }
             function openHelp() {
-                openModal('Help', `<div class="list"><div class="item"><h3>Need a hand?</h3><div class="meta">Use search to find customers or equipment, use Pipeline to move leads through stages, and open AI for sales coaching.</div></div><div class="item"><h3>Notifications</h3><div class="meta">Follow-up reminders and notification preferences will appear here once the backend is connected.</div></div></div>`)
+                openModal('Help', `<div class="list"><div class="item"><h3>Need a hand?</h3><div class="meta">Use search to find customers or equipment, use Pipeline to move leads through stages, and open AI for sales coaching.</div></div><div class="item"><h3>Notifications</h3><div class="meta">Follow-up reminders are active inside TractorCloser. Phone, email, and browser push delivery will be enabled with the selected communication provider.</div></div></div>`)
             }
             function openNotifications() {
                 openModal('Notifications', `<div class="list notification-list"><button class="item" onclick="closeModal();openNotificationTarget(1)"><div class="itemhead"><div><h3>Follow-up overdue</h3><div class="meta">Jordan Miller’s trade-in details were due yesterday.</div></div><span class="pill">Action needed</span></div></button><button class="item" onclick="closeModal();openNotificationTarget(2)"><div class="itemhead"><div><h3>Demo tomorrow</h3><div class="meta">Casey Rodriguez has a scheduled tractor demo tomorrow.</div></div><span class="pill">Upcoming</span></div></button><button class="item" onclick="closeModal();openNotificationTarget(3)"><div class="itemhead"><div><h3>Quote viewed</h3><div class="meta">Morgan Lee opened the compact tractor quote.</div></div><span class="pill">Sales signal</span></div></button></div>`)
@@ -2034,6 +2043,7 @@
                 loadDemo();
                 $('teamNav').hidden = true;
                 $('intakeNav').hidden = true;
+                $('integrationNav').hidden = true;
                 $('developerAuditNav').hidden = true;
                 $('developerSecurityNav').hidden = true;
                 $('supportBanner').hidden = true;
@@ -2097,6 +2107,10 @@
                     toast('Developer Security is available to Developer accounts only');
                     page = 'today';
                 }
+                if (page === 'integrations' && !['admin', 'developer'].includes(state.currentUser?.role)) {
+                    toast('Integration Health is available to Admin and Developer accounts only');
+                    page = 'today';
+                }
                 document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
                 $('page-' + page).classList.add('active');
                 document.querySelectorAll('.tabbtn').forEach(x => x.classList.toggle('active', x.dataset.page === page));
@@ -2121,6 +2135,8 @@
                     loadDeveloperAudit();
                 if (page === 'developer-security')
                     loadSecurityCenter();
+                if (page === 'integrations')
+                    loadIntegrationHealth();
                 if (page === 'calculator') { renderPaymentOptions(); calculatePayment(); }
                 if (page === 'ai') {
                     renderAIQueue();
@@ -2130,7 +2146,8 @@
                 const teamLink = ['admin', 'developer'].includes(state.currentUser?.role) ? `<button class="item" onclick="closeModal();go('team')"><div class="itemhead"><div><h3><span class="app-icon">♙</span>Team</h3><div class="meta">Assignments and team performance.</div></div></div></button>` : '';
                 const auditLink = state.currentUser?.role === 'developer' ? `<button class="item" onclick="closeModal();go('developer-audit')"><div class="itemhead"><div><h3><span class="app-icon">⌁</span>Developer Audit</h3><div class="meta">Support access and security history.</div></div></div></button>` : '';
                 const securityLink = state.currentUser?.role === 'developer' ? `<button class="item" onclick="closeModal();go('developer-security')"><div class="itemhead"><div><h3><span class="app-icon">⚠</span>Developer Security</h3><div class="meta">Emergency lockout controls.</div></div></div></button>` : '';
-                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamLink}${auditLink}${securityLink}</div>`)
+                const integrationLink = ['admin', 'developer'].includes(state.currentUser?.role) ? `<button class="item" onclick="closeModal();go('integrations')"><div class="itemhead"><div><h3><span class="app-icon">⌁</span>Integration Health</h3><div class="meta">Connection readiness and intake safeguards.</div></div></div></button>` : '';
+                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamLink}${integrationLink}${auditLink}${securityLink}</div>`)
             }
             function login() {
                 showLoginScreen()
@@ -2165,9 +2182,10 @@
                 $('drawerName').textContent = user.email;
                 $('signInButton').hidden = true;
                 $('demoNote').hidden = false;
-                $('demoNote').textContent = 'Live customers and pipeline · remaining modules are in preview mode.';
+                $('demoNote').textContent = 'Tractor Bob pilot workspace · external lead channels remain disconnected.';
                 $('teamNav').hidden = !['admin', 'developer'].includes(user.role);
                 $('intakeNav').hidden = user.role !== 'admin';
+                $('integrationNav').hidden = !['admin', 'developer'].includes(user.role);
                 $('developerAuditNav').hidden = user.role !== 'developer';
                 $('developerSecurityNav').hidden = user.role !== 'developer';
                 setSupportBanner(user.role === 'developer' && Boolean(user.workspace_id), user.workspace_name);
@@ -2292,6 +2310,7 @@
                 closeModal(true);
                 $('teamNav').hidden = true;
                 $('intakeNav').hidden = true;
+                $('integrationNav').hidden = true;
                 $('developerAuditNav').hidden = true;
                 $('developerSecurityNav').hidden = true;
                 $('supportBanner').hidden = true;
@@ -2396,6 +2415,18 @@
                     const locked = !security.sign_in_enabled;
                     $('securityCenter').innerHTML = `<div class="itemhead"><div><span class="pill">${locked ? 'Lockdown active' : 'Sign-in enabled'}</span><h2 style="margin:12px 0 5px">${locked ? 'Non-Developer sign-in is disabled' : 'System access is operating normally'}</h2><div class="meta">${security.reason ? `Last security reason: ${esc(security.reason)}` : 'No emergency restriction is active.'}</div></div><div class="actions"><button class="btn ${locked ? 'brand' : 'danger'}" onclick="openSecurityAction('${locked ? 'restore' : 'lockdown'}')">${locked ? 'Restore sign-in' : 'Enable lockdown'}</button></div></div>`;
                 } catch (e) { $('securityCenter').innerHTML = `<div class="empty">${esc(e.message)}</div>` }
+            }
+            async function loadIntegrationHealth() {
+                if (!['admin', 'developer'].includes(state.currentUser?.role)) return;
+                try {
+                    const health = await api('/api/admin/integrations');
+                    const statusClass = value => value === 'Connected' ? 'brand' : 'light';
+                    $('integrationHealth').innerHTML = health.providers.map(provider => `<div class="card"><div class="itemhead"><div><h2 style="margin:0">${esc(provider.name)}</h2><p class="muted" style="margin:8px 0 0">${esc(provider.detail)}</p></div><span class="pill">${esc(provider.status)}</span></div><div class="meta" style="margin-top:14px">${provider.last_sync ? 'Last sync: ' + esc(formatTimestamp(provider.last_sync)) : 'No live data has been connected.'}</div></div>`).join('') + `<div class="card"><div class="itemhead"><div><h2 style="margin:0">API security</h2><p class="muted" style="margin:8px 0 0">${health.testing_mode ? 'Testing mode is active. Restrict the allowed website origin before launch.' : 'The API is restricted to its configured website origin.'}</p></div><span class="pill">${health.testing_mode ? 'Testing mode' : 'Restricted'}</span></div></div>`;
+                    $('integrationRules').innerHTML = health.rules.map(rule => `<div class="item"><div class="meta">${esc(rule)}</div></div>`).join('');
+                } catch (e) {
+                    $('integrationHealth').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+                    $('integrationRules').innerHTML = '';
+                }
             }
             function openSecurityAction(action) {
                 const lockdown = action === 'lockdown';
@@ -2851,13 +2882,13 @@
                 const lockedSold = stage === 'Sold' && Boolean(existingDeal);
                 const owner = leadOwnerLabel(l);
                 const hasReplyChannel = Boolean(l.phone || l.email || /meta|facebook|marketplace|instagram|social/i.test(l.source || ''));
-                const needsResponse = Boolean(l.original_inquiry) && hasReplyChannel && stage === 'New' && !l.response_sent;
+                const needsResponse = Boolean(l.original_inquiry) && hasReplyChannel && l.contact_consent !== 'Opted out' && stage === 'New' && !l.response_sent;
                 const profileField = (label, value, field, full=false, editable=true) => `<div class="profile-info${full ? ' full' : ''}" data-profile-field="${field}"><span class="profile-key">${label}</span><strong class="profile-value">${esc(value || 'Not provided')}</strong>${editable ? `<button class="profile-edit" onclick="editProfileField(${id}, '${field}')" aria-label="Edit ${label}">✎</button>` : ''}</div>`;
-                const profileOverview = `<section class="profile-overview">${profileField('Customer name', l.name, 'name')}${profileField('Assigned to', owner, 'assigned', false)}${profileField('Phone', l.phone, 'phone')}${profileField('Email', l.email, 'email')}${profileField('Added to CRM', formatTimestamp(l.created_at), 'created', false, false)}${profileField('Interested product', l.equipment, 'equipment', true)}</section>`;
+                const profileOverview = `<section class="profile-overview">${profileField('Customer name', l.name, 'name')}${profileField('Assigned to', owner, 'assigned', false)}${profileField('Phone', l.phone, 'phone')}${profileField('Email', l.email, 'email')}${profileField('Contact permission', l.contact_consent || 'Unknown', 'contact_consent')}${profileField('Preferred channel', l.preferred_contact_channel || 'Not set', 'preferred_contact_channel')}${profileField('Added to CRM', formatTimestamp(l.created_at), 'created', false, false)}${profileField('Interested product', l.equipment, 'equipment', true)}</section>`;
                 const stageControl = lockedSold ? `<div class="field"><label>Pipeline stage</label><div class="meta"><span class="pill">Sold</span> Revert the sale to change this stage.</div></div>` : `<div class="field"><label>Pipeline stage</label><select id="detailStage" onchange="toggleSoldFields()">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
                 const soldSummary = `<div class="card"><div class="itemhead"><h3 style="margin:0">Close the deal</h3>${existingDeal ? `<button class="danger-pill" onclick="confirmRevertDeal(${id})">Revert</button>` : ''}</div><div class="deal-summary"><div><span class="meta">Sold price</span><strong>${money(existingDeal?.sale_price ?? l.budget ?? 0)}</strong></div><div><span class="meta">Total gross</span><strong>${money(existingDeal?.gross_profit ?? 0)}</strong></div><div><span class="meta">Date sold</span><strong>${new Date(soldDate + 'T12:00:00').toLocaleDateString()}</strong></div><div class="full"><span class="meta">Model or unit sold</span><strong>${esc(existingDeal?.equipment || l.equipment || 'Equipment to be confirmed')}</strong></div></div></div>`;
                 const soldForm = `<div class="card"><h3 style="margin-top:0">Close the deal</h3><div class="formgrid"><div class="field"><label>Sold price</label><input id="detailSoldPrice" type="number" value="${existingDeal?.sale_price ?? l.budget ?? ''}"></div><div class="field"><label>Total gross</label><input id="detailSoldGross" type="number" value="${existingDeal?.gross_profit ?? ''}"></div><div class="field"><label>Date sold</label><input id="detailSoldDate" type="date" value="${soldDate}"></div><div class="field full"><label>Model or unit sold</label><input id="detailSoldEquipment" value="${esc(existingDeal?.equipment || l.equipment || '')}"></div></div></div>`;
-                openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="askSalesManager(${id})">✦ Ask Sales Manager</button><button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button><button class="mini" onclick="showDealPlan(${id})">✦ Deal Plan</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.amount)} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
+                openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="askSalesManager(${id})">✦ Ask Sales Manager</button><button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.amount)} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
                 activeProfileId = id;
                 setProfileDirty(false);
                 insertOriginalInquiry(l, needsResponse);
@@ -2897,15 +2928,18 @@
                 const lead = state.leads.find(x => String(x.id) === String(id));
                 const card = document.querySelector(`[data-profile-field="${field}"]`);
                 if (!lead || !card) return;
-                const labels = {name: 'Customer name', phone: 'Phone', email: 'Email', equipment: 'Interested product'};
+                const labels = {name: 'Customer name', phone: 'Phone', email: 'Email', equipment: 'Interested product', contact_consent: 'Contact permission', preferred_contact_channel: 'Preferred channel'};
                 const inputType = field === 'email' ? 'email' : 'text';
-                card.innerHTML = `<span class="profile-key">${labels[field]}</span><input class="profile-inline-input" id="profileFieldInput" type="${inputType}" value="${esc(lead[field] || '')}" ${field === 'name' ? 'required' : ''}><div class="profile-inline-actions"><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveProfileField(${id}, '${field}')">Save</button><button class="mini" onclick="openLeadDetail(${id})">Cancel</button></div>`;
+                const consentOptions = ['Unknown', 'Granted', 'Opted out'];
+                const channelOptions = ['', 'Text', 'Email', 'Phone', 'Social'];
+                const editor = field === 'contact_consent' ? `<select class="profile-inline-input" id="profileFieldInput">${consentOptions.map(option => `<option ${option === (lead[field] || 'Unknown') ? 'selected' : ''}>${option}</option>`).join('')}</select>` : field === 'preferred_contact_channel' ? `<select class="profile-inline-input" id="profileFieldInput">${channelOptions.map(option => `<option value="${option}" ${option === (lead[field] || '') ? 'selected' : ''}>${option || 'Not set'}</option>`).join('')}</select>` : `<input class="profile-inline-input" id="profileFieldInput" type="${inputType}" value="${esc(lead[field] || '')}" ${field === 'name' ? 'required' : ''}>`;
+                card.innerHTML = `<span class="profile-key">${labels[field]}</span>${editor}<div class="profile-inline-actions"><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveProfileField(${id}, '${field}')">Save</button><button class="mini" onclick="openLeadDetail(${id})">Cancel</button></div>`;
                 $('profileFieldInput')?.focus();
             }
             async function saveProfileField(id, field) {
                 const lead = state.leads.find(x => String(x.id) === String(id));
                 const value = $('profileFieldInput')?.value.trim() || '';
-                const labels = {name: 'Customer name', phone: 'Phone', email: 'Email', equipment: 'Interested product'};
+                const labels = {name: 'Customer name', phone: 'Phone', email: 'Email', equipment: 'Interested product', contact_consent: 'Contact permission', preferred_contact_channel: 'Preferred channel'};
                 if (field === 'name' && !value) return toast('Customer name cannot be blank');
                 try {
                     if (demoMode) {

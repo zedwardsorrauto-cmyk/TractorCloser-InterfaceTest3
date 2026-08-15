@@ -20,10 +20,12 @@ from .schemas import ActivityCreate, ActivityResponse, ClosingCoachRequest, Clos
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
 app = FastAPI(title="TractorCloser API", version="0.1.0")
+settings = get_settings()
+allowed_origins = [origin.strip() for origin in settings.allowed_origins.split(",") if origin.strip()] or ["*"]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -93,7 +95,14 @@ def seed_initial_workspace() -> None:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"))
     lead_columns = {column["name"] for column in inspect(engine).get_columns("leads")}
-    for column_name, definition in {"source": "VARCHAR(100) DEFAULT 'Manual'", "source_reference": "VARCHAR(240) DEFAULT ''", "original_inquiry": "TEXT DEFAULT ''"}.items():
+    for column_name, definition in {
+        "source": "VARCHAR(100) DEFAULT 'Manual'",
+        "source_reference": "VARCHAR(240) DEFAULT ''",
+        "external_source_id": "VARCHAR(240) DEFAULT ''",
+        "contact_consent": "VARCHAR(40) DEFAULT 'Unknown'",
+        "preferred_contact_channel": "VARCHAR(40) DEFAULT ''",
+        "original_inquiry": "TEXT DEFAULT ''",
+    }.items():
         if column_name not in lead_columns:
             with engine.begin() as connection:
                 connection.execute(text(f"ALTER TABLE leads ADD COLUMN {column_name} {definition}"))
@@ -164,6 +173,8 @@ def seed_initial_workspace() -> None:
                     pipeline_stage=stage,
                     source=source,
                     source_reference=composer_test_reference,
+                    contact_consent="Granted" if name in {"Avery Collins (Test)", "Emery Price (Test)", "Noah Bennett (Test)"} else "Unknown",
+                    preferred_contact_channel="Text" if name == "Avery Collins (Test)" else "Email" if name == "Emery Price (Test)" else "Social" if name == "Noah Bennett (Test)" else "",
                     original_inquiry=inquiry,
                     is_test_data=True,
                 )
@@ -481,6 +492,34 @@ def update_lead_profile(lead_id: int, payload: LeadProfileUpdate, user: User = D
     db.commit()
     db.refresh(lead)
     return lead
+
+
+@app.get("/api/admin/integrations")
+def integration_health(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    workspace_id = require_admin(user)
+    configured = {
+        record.payload.get("key"): record.payload
+        for record in db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "integration_status"))
+    }
+    defaults = [
+        ("website", "Website forms", "Ready for a signed webhook"),
+        ("messaging", "Text, email & social messaging", "Ready for a provider connection"),
+        ("inventory", "Inventory and DMS", "Ready for a catalog connection"),
+    ]
+    providers = []
+    for key, name, detail in defaults:
+        saved = configured.get(key, {})
+        providers.append({"key": key, "name": name, "status": saved.get("status", "Not connected"), "detail": saved.get("detail", detail), "last_sync": saved.get("last_sync")})
+    return {
+        "testing_mode": not bool(settings.allowed_origins),
+        "intake_enabled": settings.integration_intake_enabled,
+        "providers": providers,
+        "rules": [
+            "Incoming records remain in Intake until an authorized user accepts or matches them.",
+            "Outbound messaging stays in test mode until a provider is connected and customer permissions are confirmed.",
+            "Customer records retain the source and external reference needed for duplicate review and traceability.",
+        ],
+    }
 
 
 @app.get("/api/leads/{lead_id}/activities", response_model=list[ActivityResponse])
