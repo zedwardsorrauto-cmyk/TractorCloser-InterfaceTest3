@@ -2540,7 +2540,7 @@
                 stages.forEach(s => groups[s] = []);
                 visibleLeads.forEach(l => (groups[l.pipeline_stage || l.status] || groups[stages[0]]).push(l));
                 const needsLeadResponse = lead => Boolean(lead.original_inquiry) && Boolean(lead.phone || lead.email || /meta|facebook|marketplace|instagram|social/i.test(lead.source || '')) && lead.contact_consent !== 'Opted out' && !['Sold', 'Lost'].includes(lead.pipeline_stage || lead.status || '') && !lead.response_sent;
-                $('pipeline').innerHTML = stages.map(s => `<div class="stage"><div class="stage-title"><h3>${s} · ${groups[s].length}</h3><button class="stage-view" onclick="openPipelineStage('${s}')">View all →</button></div>${groups[s].slice(0, 2).map(l => `<button class="leadcard" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}${needsLeadResponse(l) ? ', unanswered message' : ''}"><span class="leadcard-title"><strong>${esc(l.name)}</strong>${needsLeadResponse(l) ? '<span class="lead-unread-dot" title="Unanswered customer message"></span>' : ''}</span><span class="meta"><span class="product-summary">${esc(l.equipment || 'Interested product not specified')}</span><span class="lead-owner">${esc(leadOwnerLabel(l))}</span><span class="followup-status">Follow-up: ${esc(l.follow_up_enabled ? leadFollowupLabel(l).replace(/^Next |^Follow-up /, '') : 'Off')}</span></span></button>`).join('') || '<div class="meta">No leads</div>'}</div>`).join('')
+                $('pipeline').innerHTML = stages.map(s => `<div class="stage"><div class="stage-title"><h3>${s} · ${groups[s].length}</h3><button class="stage-view" onclick="openPipelineStage('${s}')">View all →</button></div>${groups[s].slice(0, 2).map(l => `<button class="leadcard" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}${needsLeadResponse(l) ? ', unanswered message' : ''}"><span class="leadcard-title"><strong>${esc(l.name)}</strong>${needsLeadResponse(l) ? '<span class="lead-unread-dot" title="Unanswered customer message"></span>' : ''}</span><span class="meta"><span class="product-summary">${esc(l.equipment || 'Interested product not specified')}</span><span class="lead-owner">${leadSourceIcon(l.source)} ${esc(l.source || 'Manual')} · ${esc(leadOwnerLabel(l))}</span><span class="followup-status">Follow-up: ${esc(l.follow_up_enabled ? leadFollowupLabel(l).replace(/^Next |^Follow-up /, '') : 'Off')}</span></span></button>`).join('') || '<div class="meta">No leads</div>'}</div>`).join('')
                 $('pipelineMobile').innerHTML = stages.map(s => `<button class="stage-launcher" onclick="openPipelineStage('${s}')"><strong>${s}</strong><span>${groups[s].length} ${groups[s].length === 1 ? 'lead' : 'leads'} →</span></button>`).join('')
             }
             function renderPipelineOwnerFilter() {
@@ -2557,6 +2557,15 @@
                 if (owner) return memberLabel(owner.email);
                 if (state.currentUser && lead.assigned_user_id != null && String(state.currentUser.id) === String(lead.assigned_user_id)) return memberLabel(state.currentUser.email);
                 return 'Unassigned';
+            }
+            function leadSourceIcon(source='') {
+                const value = String(source).toLowerCase();
+                if (/facebook|marketplace|instagram|social/.test(value)) return '💬';
+                if (/missed call|phone|call/.test(value)) return '☎';
+                if (/website|web/.test(value)) return '📄';
+                if (/email/.test(value)) return '✉';
+                if (/in-person|walk/.test(value)) return '👤';
+                return '✦';
             }
             function leadFollowupRecord(lead) {
                 return state.followups.filter(item => String(item.lead_id) === String(lead.id) && item.status === 'Pending').sort((a, b) => new Date(a.due_at) - new Date(b.due_at))[0] || null;
@@ -2579,7 +2588,7 @@
                 const sort = $('stageLeadSort')?.value || 'followup';
                 const leads = [...(window.currentStageLeads || [])].filter(l => searchable(l.name, l.phone, l.email, l.equipment).includes(query));
                 leads.sort((a, b) => sort === 'budget' ? Number(b.budget || 0) - Number(a.budget || 0) : sort === 'name' ? a.name.localeCompare(b.name) : String(leadFollowupRecord(a)?.due_at || 'zzzz').localeCompare(String(leadFollowupRecord(b)?.due_at || 'zzzz')));
-                $('stageLeads').innerHTML = leads.map(l => `<button class="item" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><h3>${esc(l.name)}</h3><div class="meta">${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || 'Equipment not specified')}${l.budget ? ' · ' + money(l.budget) : ''}</div></button>`).join('') || '<div class="empty">No leads match this filter.</div>'
+                $('stageLeads').innerHTML = leads.map(l => `<button class="item" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><h3>${leadSourceIcon(l.source)} ${esc(l.name)}</h3><div class="meta">${esc(l.source || 'Manual')} · ${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || 'Equipment not specified')}${l.budget ? ' · ' + money(l.budget) : ''}</div></button>`).join('') || '<div class="empty">No leads match this filter.</div>'
             }
             function openLeadFromRecord(leadId, name) {
                 const lead = leadId ? state.leads.find(l => String(l.id) === String(leadId)) : state.leads.find(l => l.name === name);
@@ -2627,7 +2636,7 @@
                 toast('Pipeline settings saved')
             }
             function renderCRM() {
-                $('crmLeads').innerHTML = state.leads.map(l => `<button class="item" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><h3>${esc(l.name)}</h3><div class="meta">${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || '')} · ${esc(l.pipeline_stage || l.status)}</div></button>`).join('') || '<div class="empty">No customers yet.</div>';
+                $('crmLeads').innerHTML = state.leads.map(l => `<button class="item" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><h3>${leadSourceIcon(l.source)} ${esc(l.name)}</h3><div class="meta">${esc(l.source || 'Manual')} · ${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || '')} · ${esc(l.pipeline_stage || l.status)}</div></button>`).join('') || '<div class="empty">No customers yet.</div>';
                 const pending = state.followups.filter(f => f.status === 'Pending');
                 $('crmFollowups').innerHTML = pending.map(f => `<div class="item" onclick="openLeadFromRecord(${f.lead_id || 'null'},'${esc(f.name)}')"><div class="itemhead"><div><h3>${esc(f.name)}</h3><div class="meta">Due ${formatTimestamp(f.due_at)}<br>${esc(f.notes || '')}</div></div><button class="mini" onclick="event.stopPropagation();completeFollowup(${f.id})">Done</button></div></div>`).join('') || '<div class="empty">No pending follow-ups.</div>';
                 $('crmAppointments').innerHTML = state.appointments.filter(a => a.status === 'Scheduled').map(a => `<div class="item" onclick="openLeadFromRecord(${a.lead_id || 'null'},'${esc(a.lead_name)}')"><div class="itemhead"><div><h3>${esc(a.lead_name)}</h3><div class="meta">${formatTimestamp(a.starts_at)} · ${esc(a.type)}<br>${esc(a.notes || '')}</div></div><div class="actions"><button class="mini" onclick="event.stopPropagation();updateAppointment(${a.id},'Completed')">Complete</button><button class="mini" onclick="event.stopPropagation();updateAppointment(${a.id},'Cancelled')">Cancel</button></div></div></div>`).join('') || '<div class="empty">No appointments.</div>';
@@ -2901,7 +2910,7 @@
                 const soldSummary = `<div class="card"><div class="itemhead"><h3 style="margin:0">Close the deal</h3>${existingDeal ? `<button class="danger-pill" onclick="confirmRevertDeal(${id})">Revert</button>` : ''}</div><div class="deal-summary"><div><span class="meta">Sold price</span><strong>${money(existingDeal?.sale_price ?? l.budget ?? 0)}</strong></div><div><span class="meta">Total gross</span><strong>${money(existingDeal?.gross_profit ?? 0)}</strong></div><div><span class="meta">Date sold</span><strong>${new Date(soldDate + 'T12:00:00').toLocaleDateString()}</strong></div><div class="full"><span class="meta">Model or unit sold</span><strong>${esc(existingDeal?.equipment || l.equipment || 'Equipment to be confirmed')}</strong></div></div></div>`;
                 const soldForm = `<div class="card"><h3 style="margin-top:0">Close the deal</h3><div class="formgrid"><div class="field"><label>Sold price</label><input id="detailSoldPrice" type="number" value="${existingDeal?.sale_price ?? l.budget ?? ''}"></div><div class="field"><label>Total gross</label><input id="detailSoldGross" type="number" value="${existingDeal?.gross_profit ?? ''}"></div><div class="field"><label>Date sold</label><input id="detailSoldDate" type="date" value="${soldDate}"></div><div class="field full"><label>Model or unit sold</label><input id="detailSoldEquipment" value="${esc(existingDeal?.equipment || l.equipment || '')}"></div></div></div>`;
                 openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="askSalesManager(${id})">✦ Ask Sales Manager</button><button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.amount)} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
-                $('modalMeta').textContent = `Added to CRM · ${formatTimestamp(l.created_at)}`;
+                $('modalMeta').textContent = `${leadSourceIcon(l.source)} ${l.source || 'Manual'} · Added to CRM ${formatTimestamp(l.created_at)}`;
                 activeProfileId = id;
                 setProfileDirty(false);
                 insertOriginalInquiry(l, needsResponse);
@@ -2970,9 +2979,7 @@
             function insertOriginalInquiry(lead, needsResponse=false) {
                 const source = lead.source || 'Manual entry';
                 const inquiry = lead.original_inquiry || '';
-                const lowerSource = source.toLowerCase();
-                const sourceIcon = /facebook|marketplace|instagram|social/.test(lowerSource) ? '💬' : /missed call|phone|call/.test(lowerSource) ? '☎' : /website|web/.test(lowerSource) ? '🌐' : /email/.test(lowerSource) ? '✉' : /in-person|walk/.test(lowerSource) ? '👋' : '✦';
-                const sourcePill = `<span class="pill">${sourceIcon} ${esc(source)}</span>`;
+                const sourcePill = `<span class="pill">${leadSourceIcon(source)} ${esc(source)}</span>`;
                 const unread = needsResponse ? '<span class="unread-inquiry"><span class="unread-dot"></span>Unread · reply needed</span>' : '';
                 const replyButton = needsResponse ? '<button class="mini" style="background:var(--brand);color:#fff" onclick="openResponseComposer()">Reply</button>' : '';
                 const sourceCard = inquiry ? `<div class="card" id="originalInquiry" style="margin:14px 0"><div class="itemhead"><div class="inquiry-heading"><strong>First inquiry</strong>${unread}</div><div class="actions">${sourcePill}${replyButton}</div></div><p class="inquiry-copy" style="margin-bottom:0">${esc(inquiry)}</p></div>` : `<div class="card" id="originalInquiry" style="margin:12px 0"><div class="itemhead"><div><strong>Lead source</strong><div class="meta" style="margin-top:4px">${sourcePill}</div></div>${replyButton}</div></div>`;
@@ -2981,17 +2988,20 @@
             function insertConversationPanel(lead) {
                 const source = lead.source || 'Manual entry';
                 const isMissedCall = /missed call/i.test(source);
-                const channelOptions = [];
-                if (isMissedCall) {
-                    channelOptions.push('<option value="Callback">Callback</option>');
-                } else if (lead.phone) {
-                    channelOptions.push('<option value="Text message">Text message</option>');
-                    channelOptions.push('<option value="Callback">Callback</option>');
-                }
-                if (lead.email) channelOptions.push('<option value="Email">Email</option>');
-                if (/meta|facebook|marketplace|instagram|social/i.test(source)) channelOptions.push('<option value="Social reply">Social reply</option>');
-                if (!channelOptions.length) channelOptions.push('<option value="Internal follow-up">Internal follow-up</option>');
-                const composer = `<section class="card" id="responseComposer" style="margin:14px 0" hidden><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.</div></div><span class="pill">Safe test mode</span></div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${channelOptions.join('')}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button id="composerDraftButton" class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button id="composerPrimaryButton" class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Send</button></div></section>`;
+                const isSocial = /meta|facebook|marketplace|instagram|social/i.test(source);
+                const isEmailSource = /email/i.test(source);
+                const isPhoneSource = /phone|call/i.test(source);
+                const hasPhone = Boolean(lead.phone);
+                const hasEmail = Boolean(lead.email);
+                const channelOptions = [
+                    ['Text message', hasPhone, 'Text message'],
+                    ['Callback', hasPhone, 'Callback'],
+                    ['Email', hasEmail, 'Email'],
+                    ['Social reply', isSocial, 'Social reply'],
+                ];
+                const preferredChannel = isMissedCall && hasPhone ? 'Callback' : isSocial ? 'Social reply' : isEmailSource && hasEmail ? 'Email' : isPhoneSource && hasPhone ? 'Text message' : hasEmail ? 'Email' : hasPhone ? 'Text message' : 'Internal follow-up';
+                const options = channelOptions.map(([value, enabled, label]) => `<option value="${value}" ${value === preferredChannel ? 'selected' : ''} ${enabled ? '' : 'disabled'}>${label}${enabled ? '' : ' — unavailable'}</option>`).join('') + (preferredChannel === 'Internal follow-up' ? '<option value="Internal follow-up" selected>Internal follow-up</option>' : '');
+                const composer = `<section class="card" id="responseComposer" style="margin:14px 0" hidden><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.</div></div><span class="pill">Safe test mode</span></div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${options}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button id="composerDraftButton" class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button id="composerPrimaryButton" class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Send</button></div></section>`;
                 const inquiry = $('originalInquiry');
                 if (inquiry) inquiry.insertAdjacentHTML('afterend', composer);
                 else $('modalBody').insertAdjacentHTML('afterbegin', composer);
