@@ -624,6 +624,9 @@
             .leadcard strong {
                 display: block
             }
+            .leadcard-title { display: flex; align-items: center; gap: 8px }
+            .lead-unread-dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: #dc2626; box-shadow: 0 0 0 3px rgba(220,38,38,.14); animation: unreadPulse 1.35s ease-in-out infinite }
+            @keyframes unreadPulse { 50% { transform: scale(.7); opacity: .45 } }
             .leadcard .lead-owner { display: block; color: var(--ink); font-weight: 850 }
             .leadcard .followup-status { display: block; color: var(--ok); font-weight: 800 }
             .leadcard .product-summary,.inquiry-copy { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2 }
@@ -2456,8 +2459,8 @@
                 activeLeads.forEach(lead => {
                     const source = String(lead.source || '').toLowerCase();
                     const canReply = Boolean(lead.phone || lead.email || /meta|facebook|marketplace|instagram|social/.test(source));
-                    const needsReply = Boolean(lead.original_inquiry) && canReply && (lead.pipeline_stage || lead.status || '') === 'New' && !lead.response_sent;
-                    if (needsReply) add(lead, 'reply', 100, 'Respond to new inquiry', `${lead.source || 'New'} inquiry is waiting for a first response.`);
+                    const needsReply = Boolean(lead.original_inquiry) && canReply && lead.contact_consent !== 'Opted out' && !['Sold', 'Lost'].includes(lead.pipeline_stage || lead.status || '') && !lead.response_sent;
+                    if (needsReply) add(lead, 'reply', 100, 'Respond to unanswered inquiry', `${lead.source || 'Customer'} message is waiting for a response.`);
                     const followup = leadFollowupRecord(lead);
                     if (followup?.due_at) {
                         const hoursUntil = (new Date(followup.due_at).getTime() - now) / 3600000;
@@ -2536,7 +2539,8 @@
                 const groups = {};
                 stages.forEach(s => groups[s] = []);
                 visibleLeads.forEach(l => (groups[l.pipeline_stage || l.status] || groups[stages[0]]).push(l));
-                $('pipeline').innerHTML = stages.map(s => `<div class="stage"><div class="stage-title"><h3>${s} · ${groups[s].length}</h3><button class="stage-view" onclick="openPipelineStage('${s}')">View all →</button></div>${groups[s].slice(0, 2).map(l => `<button class="leadcard" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><strong>${esc(l.name)}</strong><span class="meta"><span class="product-summary">${esc(l.equipment || 'Interested product not specified')}</span><span class="lead-owner">${esc(leadOwnerLabel(l))}</span><span class="followup-status">Follow-up: ${esc(l.follow_up_enabled ? leadFollowupLabel(l).replace(/^Next |^Follow-up /, '') : 'Off')}</span></span></button>`).join('') || '<div class="meta">No leads</div>'}</div>`).join('')
+                const needsLeadResponse = lead => Boolean(lead.original_inquiry) && Boolean(lead.phone || lead.email || /meta|facebook|marketplace|instagram|social/i.test(lead.source || '')) && lead.contact_consent !== 'Opted out' && !['Sold', 'Lost'].includes(lead.pipeline_stage || lead.status || '') && !lead.response_sent;
+                $('pipeline').innerHTML = stages.map(s => `<div class="stage"><div class="stage-title"><h3>${s} · ${groups[s].length}</h3><button class="stage-view" onclick="openPipelineStage('${s}')">View all →</button></div>${groups[s].slice(0, 2).map(l => `<button class="leadcard" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}${needsLeadResponse(l) ? ', unanswered message' : ''}"><span class="leadcard-title"><strong>${esc(l.name)}</strong>${needsLeadResponse(l) ? '<span class="lead-unread-dot" title="Unanswered customer message"></span>' : ''}</span><span class="meta"><span class="product-summary">${esc(l.equipment || 'Interested product not specified')}</span><span class="lead-owner">${esc(leadOwnerLabel(l))}</span><span class="followup-status">Follow-up: ${esc(l.follow_up_enabled ? leadFollowupLabel(l).replace(/^Next |^Follow-up /, '') : 'Off')}</span></span></button>`).join('') || '<div class="meta">No leads</div>'}</div>`).join('')
                 $('pipelineMobile').innerHTML = stages.map(s => `<button class="stage-launcher" onclick="openPipelineStage('${s}')"><strong>${s}</strong><span>${groups[s].length} ${groups[s].length === 1 ? 'lead' : 'leads'} →</span></button>`).join('')
             }
             function renderPipelineOwnerFilter() {
@@ -2886,7 +2890,7 @@
                 const lockedSold = stage === 'Sold' && Boolean(existingDeal);
                 const owner = leadOwnerLabel(l);
                 const hasReplyChannel = Boolean(l.phone || l.email || /meta|facebook|marketplace|instagram|social/i.test(l.source || ''));
-                const needsResponse = Boolean(l.original_inquiry) && hasReplyChannel && l.contact_consent !== 'Opted out' && stage === 'New' && !l.response_sent;
+                const needsResponse = Boolean(l.original_inquiry) && hasReplyChannel && l.contact_consent !== 'Opted out' && !['Sold', 'Lost'].includes(stage) && !l.response_sent;
                 const profileField = (label, value, field, full=false, editable=true) => `<div class="profile-info${full ? ' full' : ''}" data-profile-field="${field}"><span class="profile-key">${label}</span><strong class="profile-value">${esc(value || 'Not provided')}</strong>${editable ? `<button class="profile-edit" onclick="editProfileField(${id}, '${field}')" aria-label="Edit ${label}">✎</button>` : ''}</div>`;
                 const profileOverview = `<section class="profile-overview">${profileField('Assigned to', owner, 'assigned', true)}${profileField('Phone', l.phone, 'phone')}${profileField('Email', l.email, 'email')}${profileField('Contact permission', l.contact_consent || 'Unknown', 'contact_consent')}${profileField('Preferred channel', l.preferred_contact_channel || 'Not set', 'preferred_contact_channel')}${profileField('Interested product', l.equipment, 'equipment', true)}</section>`;
                 const stageControl = lockedSold ? `<div class="field"><label>Pipeline stage</label><div class="meta"><span class="pill">Sold</span> Revert the sale to change this stage.</div></div>` : `<div class="field"><label>Pipeline stage</label><select id="detailStage" onchange="toggleSoldFields()">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
