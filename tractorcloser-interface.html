@@ -25,6 +25,11 @@
                 box-sizing: border-box
             }
 
+            html,body { max-width: 100%; overflow-x: clip }
+            img,svg { max-width: 100% }
+            input,select,textarea,button { max-width: 100% }
+            .wrap,.toprow,.utilitybar,.support-banner,.search-results,.card,.stat,.manager,.stage,.item { min-width: 0 }
+
             body {
                 margin: 0;
                 background-color: var(--bg);
@@ -1030,6 +1035,16 @@
                 .utilitybar { max-width: 100% }
             }
 
+            /* A resized laptop window should reflow into readable columns,
+               never force the user to pan sideways. */
+            @media (min-width: 851px) and (max-width: 1110px) {
+                .grid4 { grid-template-columns: repeat(2,minmax(0,1fr)) }
+                .grid3 { grid-template-columns: repeat(2,minmax(0,1fr)) }
+                .stagegrid { grid-template-columns: repeat(2,minmax(0,1fr)); overflow: visible }
+                .stage { min-width: 0 }
+                .team-row { min-width: 0; grid-template-columns: minmax(210px,1.45fr) repeat(4,minmax(62px,.65fr)); gap: 9px }
+            }
+
             .page {
                 display: none
             }
@@ -1338,6 +1353,54 @@
                     font-size: 11px
                 }
                 .drawer-action.danger { color: var(--danger); background: #fff7f6 }
+            }
+
+            /* Tablet and phone layouts turn wide information tables into
+               compact cards, keeping every value visible without side-scroll. */
+            @media(max-width: 850px) {
+                .team-table { overflow: visible }
+                .team-row { min-width: 0; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 11px; padding: 15px 0 }
+                .team-row.team-head { display: none }
+                .team-person { grid-column: 1 / -1 }
+                .team-metric { padding: 8px 10px; border-radius: 10px; background: #f7f9f7 }
+                .team-metric b { font-size: 16px }
+                .stagegrid { grid-template-columns: repeat(2,minmax(0,1fr)); overflow: visible }
+                .stage { min-width: 0 }
+                .search-results { margin-left: 16px; margin-right: 16px }
+            }
+
+            @media(max-width: 520px) {
+                .top { padding: 19px 14px 16px }
+                .toprow { gap: 10px }
+                .brand { font-size: 23px }
+                .sub { font-size: 13px }
+                .header-notification { width: 40px; height: 40px }
+                .avatar { width: 44px; height: 44px; font-size: 13px }
+                .wrap { padding: 14px 12px }
+                .utilitybar { padding: 0 12px }
+                .support-banner { padding: 8px 12px; align-items: flex-start; font-size: 12px }
+                .support-banner .mini { flex: 0 0 auto; font-size: 11px }
+                .hero { gap: 12px }
+                .hero h1 { font-size: 30px; line-height: 1.05 }
+                .hero p { font-size: 15px }
+                .stat,.card { border-radius: 18px; padding: 15px }
+                .crm-hub { grid-template-columns: 1fr }
+                .crm-hub-card { min-height: 108px }
+                .payment-option { grid-template-columns: 1fr }
+                .payment-result { grid-column: auto; text-align: left }
+                .payment-remove { grid-column: auto; justify-self: start }
+                .proposal-head,.proposal-option { align-items: flex-start; flex-direction: column }
+                .proposal-option b { font-size: 18px }
+                .four-cell { min-height: 96px; padding: 12px }
+                .four-cell b { font-size: clamp(18px,6vw,23px) }
+                .proposal-actions,.actions { width: 100% }
+                .proposal-actions { flex-direction: column }
+                .proposal-actions .btn,.proposal-actions .mini { width: 100% }
+                .modal { padding: 8px }
+                .sheet { width: 100%; max-height: 94vh; padding: 16px; border-radius: 18px 18px 0 0 }
+                .modal.centered .sheet { border-radius: 18px }
+                .modalhead { align-items: flex-start; gap: 10px }
+                .modalhead h2 { font-size: 20px }
             }
         </style>
     </head>
