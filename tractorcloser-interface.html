@@ -1731,10 +1731,10 @@
             </div>
         </nav>
         <nav class="tabs mobile-tabs" aria-label="Mobile navigation">
-            <button class="tabbtn active" data-mobile-page="today" onclick="go('today')"><span class="app-icon home-mark">⌂</span><span>Today</span></button>
-            <button class="tabbtn" data-mobile-page="work" onclick="go('pipeline')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor" opacity=".58"/><circle cx="19" cy="12" r="2" fill="currentColor" opacity=".3"/></svg></span><span>Pipeline</span></button>
-            <button class="tabbtn" data-mobile-page="crm" onclick="go('crm')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span><span>CRM</span></button>
-            <button class="tabbtn" data-mobile-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span><span>AI</span></button>
+            <button id="mobileNavToday" class="tabbtn active" data-mobile-page="today" onclick="go('today')"><span class="app-icon home-mark">⌂</span><span>Today</span></button>
+            <button id="mobileNavSecond" class="tabbtn" data-mobile-page="work" onclick="go('pipeline')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor" opacity=".58"/><circle cx="19" cy="12" r="2" fill="currentColor" opacity=".3"/></svg></span><span>Pipeline</span></button>
+            <button id="mobileNavThird" class="tabbtn" data-mobile-page="crm" onclick="go('crm')"><span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span><span>CRM</span></button>
+            <button id="mobileNavFourth" class="tabbtn" data-mobile-page="ai" onclick="go('ai')"><span class="app-icon spark">✦</span><span>AI</span></button>
             <button class="tabbtn" data-mobile-page="more" onclick="openMobileMenu('more')"><span class="app-icon">••</span><span>More</span></button>
         </nav>
         <div class="modal" id="modal">
@@ -2121,7 +2121,8 @@
                 document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
                 $('page-' + page).classList.add('active');
                 document.querySelectorAll('.tabbtn').forEach(x => x.classList.toggle('active', x.dataset.page === page));
-                const mobilePage = ['today','crm','crm-view','ai'].includes(page) ? (page === 'crm-view' ? 'crm' : page) : (['win','pipeline','pipeline-stage'].includes(page) ? 'work' : 'more');
+                const managerMobilePages = ['today', 'intake', 'team', 'inventory'];
+                const mobilePage = state.currentUser?.role === 'admin' && managerMobilePages.includes(page) ? page : (['today','crm','crm-view','ai'].includes(page) ? (page === 'crm-view' ? 'crm' : page) : (['win','pipeline','pipeline-stage'].includes(page) ? 'work' : 'more'));
                 document.querySelectorAll('[data-mobile-page]').forEach(x => x.classList.toggle('active', x.dataset.mobilePage === mobilePage));
                 history.replaceState(null, '', '#' + page);
                 if (page === 'today' || page === 'win')
@@ -2154,7 +2155,10 @@
                 const auditLink = state.currentUser?.role === 'developer' ? `<button class="item" onclick="closeModal();go('developer-audit')"><div class="itemhead"><div><h3><span class="app-icon">⌁</span>Developer Audit</h3><div class="meta">Support access and security history.</div></div></div></button>` : '';
                 const securityLink = state.currentUser?.role === 'developer' ? `<button class="item" onclick="closeModal();go('developer-security')"><div class="itemhead"><div><h3><span class="app-icon">⚠</span>Developer Security</h3><div class="meta">Emergency lockout controls.</div></div></div></button>` : '';
                 const integrationLink = ['admin', 'developer'].includes(state.currentUser?.role) ? `<button class="item" onclick="closeModal();go('integrations')"><div class="itemhead"><div><h3><span class="app-icon">⌁</span>Integration Health</h3><div class="meta">Connection readiness and intake safeguards.</div></div></div></button>` : '';
-                openModal('More', `<div class="list"><button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button><button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button><button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamLink}${integrationLink}${auditLink}${securityLink}</div>`)
+                const managerWorkspaceLinks = state.currentUser?.role === 'admin' ? `<button class="item" onclick="closeModal();go('pipeline')"><div class="itemhead"><div><h3><span class="app-icon">⌁</span>Pipeline</h3><div class="meta">Full sales process and assigned leads.</div></div></div></button><button class="item" onclick="closeModal();go('crm')"><div class="itemhead"><div><h3><span class="app-icon">♙</span>CRM</h3><div class="meta">Customer records and contact history.</div></div></div></button><button class="item" onclick="closeModal();go('ai')"><div class="itemhead"><div><h3><span class="app-icon spark">✦</span>AI</h3><div class="meta">Sales coaching and Manager Brief.</div></div></div></button>` : '';
+                const inventoryLink = state.currentUser?.role === 'admin' ? '' : `<button class="item" onclick="closeModal();go('inventory')"><div class="itemhead"><div><h3><span class="app-icon">▦</span>Inventory</h3><div class="meta">Available equipment and matching details.</div></div></div></button>`;
+                const teamMenuLink = state.currentUser?.role === 'admin' ? '' : teamLink;
+                openModal('More', `<div class="list">${managerWorkspaceLinks}<button class="item" onclick="closeModal();go('win')"><div class="itemhead"><div><h3><span class="app-icon">✓</span>To-Do List</h3><div class="meta">Priority actions and quick wins.</div></div></div></button>${inventoryLink}<button class="item" onclick="closeModal();go('deals')"><div class="itemhead"><div><h3><span class="app-icon">$</span>Deals</h3><div class="meta">Closed business and gross-profit scoreboard.</div></div></div></button><button class="item" onclick="closeModal();go('calculator')"><div class="itemhead"><div><h3><span class="app-icon">#</span>Payment Calculator</h3><div class="meta">Cash and finance estimates.</div></div></div></button>${teamMenuLink}${integrationLink}${auditLink}${securityLink}</div>`)
             }
             function login() {
                 showLoginScreen()
@@ -2195,6 +2199,16 @@
                 $('integrationNav').hidden = !['admin', 'developer'].includes(user.role);
                 $('developerAuditNav').hidden = user.role !== 'developer';
                 $('developerSecurityNav').hidden = user.role !== 'developer';
+                const isManager = user.role === 'admin';
+                $('mobileNavSecond').dataset.mobilePage = isManager ? 'intake' : 'work';
+                $('mobileNavThird').dataset.mobilePage = isManager ? 'team' : 'crm';
+                $('mobileNavFourth').dataset.mobilePage = isManager ? 'inventory' : 'ai';
+                $('mobileNavSecond').onclick = () => go(isManager ? 'intake' : 'pipeline');
+                $('mobileNavThird').onclick = () => go(isManager ? 'team' : 'crm');
+                $('mobileNavFourth').onclick = () => go(isManager ? 'inventory' : 'ai');
+                $('mobileNavSecond').innerHTML = isManager ? '<span class="app-icon">⌁</span><span>Intake</span>' : '<span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h16"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="12" cy="12" r="2" fill="currentColor" opacity=".58"/><circle cx="19" cy="12" r="2" fill="currentColor" opacity=".3"/></svg></span><span>Pipeline</span>';
+                $('mobileNavThird').innerHTML = isManager ? '<span class="app-icon">♙</span><span>Team</span>' : '<span class="app-icon svg-mark"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 21c.8-4 3.1-6 6.5-6s5.7 2 6.5 6"/></svg></span><span>CRM</span>';
+                $('mobileNavFourth').innerHTML = isManager ? '<span class="app-icon">▦</span><span>Inventory</span>' : '<span class="app-icon spark">✦</span><span>AI</span>';
                 setSupportBanner(user.role === 'developer' && Boolean(user.workspace_id), user.workspace_name);
                 hideLoginScreen()
             }
