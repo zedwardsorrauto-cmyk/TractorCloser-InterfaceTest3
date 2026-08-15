@@ -397,13 +397,13 @@
 
             #modalBody { position: relative }
             .profile-discard {
-                position: absolute;
+                position: fixed;
                 inset: 0;
                 display: grid;
                 place-items: center;
                 padding: 20px;
                 background: rgba(19,29,25,.4);
-                z-index: 2
+                z-index: 110
             }
             .profile-discard-card {
                 width: min(100%,360px);
@@ -619,6 +619,9 @@
             .leadcard strong {
                 display: block
             }
+            .leadcard .lead-owner { color: var(--ink); font-weight: 850 }
+            .leadcard .followup-status { color: var(--ok); font-weight: 800 }
+            .leadcard .product-summary,.inquiry-copy { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2 }
 
             .formgrid {
                 display: grid;
@@ -2148,6 +2151,7 @@
                     stages = settings.stages || stages;
                     followupReminderHours = Number(settings.followup_hours || followupReminderHours);
                     demoMode = false;
+                    await ensureActiveFollowups();
                     renderWin(); renderPipeline(); renderCRM(); renderDeals(); renderInventory(); renderTeam(); renderIntake();
                     applyAuthenticatedUser(me);
                     startLiveSync()
@@ -2156,6 +2160,17 @@
                         forceSessionLogout('Your session was ended by security controls. Please sign in again.')
                     } else
                         toast(e.message)
+                }
+            }
+            async function ensureActiveFollowups() {
+                const missing = state.leads.filter(lead => lead.follow_up_enabled && !['Sold', 'Lost'].includes(lead.pipeline_stage || lead.status || '') && !leadFollowupRecord(lead));
+                for (const lead of missing) {
+                    try {
+                        const followup = await api('/api/followups', {method: 'POST', body: JSON.stringify({lead_id: lead.id, due_at: new Date(Date.now() + followupReminderHours * 3600000).toISOString(), notes: 'Initial pipeline follow-up'})});
+                        state.followups.push(followup);
+                    } catch (_) {
+                        // The next save on the profile will retry scheduling if the API is temporarily unavailable.
+                    }
                 }
             }
             function startLiveSync() {
@@ -2365,7 +2380,7 @@
                 const groups = {};
                 stages.forEach(s => groups[s] = []);
                 visibleLeads.forEach(l => (groups[l.pipeline_stage || l.status] || groups[stages[0]]).push(l));
-                $('pipeline').innerHTML = stages.map(s => `<div class="stage"><div class="stage-title"><h3>${s} · ${groups[s].length}</h3><button class="stage-view" onclick="openPipelineStage('${s}')">View all →</button></div>${groups[s].slice(0, 2).map(l => `<button class="leadcard" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><strong>${esc(l.name)}</strong><span class="meta">${esc(l.equipment || '')}<br>${esc(leadOwnerLabel(l))} · ${l.budget ? money(l.budget) + ' budget' : 'No budget'}<br>${l.next_follow_up ? 'Next ' + esc(l.next_follow_up) : 'No next follow-up'}</span></button>`).join('') || '<div class="meta">No leads</div>'}</div>`).join('')
+                $('pipeline').innerHTML = stages.map(s => `<div class="stage"><div class="stage-title"><h3>${s} · ${groups[s].length}</h3><button class="stage-view" onclick="openPipelineStage('${s}')">View all →</button></div>${groups[s].slice(0, 2).map(l => `<button class="leadcard" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><strong>${esc(l.name)}</strong><span class="meta"><span class="product-summary">${esc(l.equipment || 'Interested product not specified')}</span><span class="lead-owner">${esc(leadOwnerLabel(l))}</span><span class="followup-status">Follow-up: ${esc(l.follow_up_enabled ? leadFollowupLabel(l).replace(/^Next |^Follow-up /, '') : 'Off')}</span></span></button>`).join('') || '<div class="meta">No leads</div>'}</div>`).join('')
                 $('pipelineMobile').innerHTML = stages.map(s => `<button class="stage-launcher" onclick="openPipelineStage('${s}')"><strong>${s}</strong><span>${groups[s].length} ${groups[s].length === 1 ? 'lead' : 'leads'} →</span></button>`).join('')
             }
             function renderPipelineOwnerFilter() {
@@ -2383,6 +2398,14 @@
                 if (state.currentUser && lead.assigned_user_id != null && String(state.currentUser.id) === String(lead.assigned_user_id)) return memberLabel(state.currentUser.email);
                 return 'Unassigned';
             }
+            function leadFollowupRecord(lead) {
+                return state.followups.filter(item => String(item.lead_id) === String(lead.id) && item.status === 'Pending').sort((a, b) => new Date(a.due_at) - new Date(b.due_at))[0] || null;
+            }
+            function leadFollowupLabel(lead) {
+                const followup = leadFollowupRecord(lead);
+                if (followup?.due_at) return `Next ${new Date(followup.due_at).toLocaleDateString([], {month: 'short', day: 'numeric'})}`;
+                return lead.follow_up_enabled ? 'Follow-up active' : 'Follow-up off';
+            }
             function openPipelineStage(stage) {
                 const selectedOwner = $('pipelineOwnerFilter')?.value || 'all';
                 window.currentStageLeads = state.leads.filter(l => (l.pipeline_stage || l.status || 'New') === stage && (selectedOwner === 'all' || String(l.assigned_user_id || '') === selectedOwner));
@@ -2395,7 +2418,7 @@
                 const query = $('stageLeadFilter')?.value.trim().toLowerCase() || '';
                 const sort = $('stageLeadSort')?.value || 'followup';
                 const leads = [...(window.currentStageLeads || [])].filter(l => searchable(l.name, l.phone, l.email, l.equipment).includes(query));
-                leads.sort((a, b) => sort === 'budget' ? Number(b.budget || 0) - Number(a.budget || 0) : sort === 'name' ? a.name.localeCompare(b.name) : String(a.next_follow_up || 'zzzz').localeCompare(String(b.next_follow_up || 'zzzz')));
+                leads.sort((a, b) => sort === 'budget' ? Number(b.budget || 0) - Number(a.budget || 0) : sort === 'name' ? a.name.localeCompare(b.name) : String(leadFollowupRecord(a)?.due_at || 'zzzz').localeCompare(String(leadFollowupRecord(b)?.due_at || 'zzzz')));
                 $('stageLeads').innerHTML = leads.map(l => `<button class="item" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><h3>${esc(l.name)}</h3><div class="meta">${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || 'Equipment not specified')}${l.budget ? ' · ' + money(l.budget) : ''}</div></button>`).join('') || '<div class="empty">No leads match this filter.</div>'
             }
             function openLeadFromRecord(leadId, name) {
@@ -2688,7 +2711,7 @@
                 const soldDate = existingDeal?.sold_at ? new Date(existingDeal.sold_at).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
                 const lockedSold = stage === 'Sold' && Boolean(existingDeal);
                 const owner = leadOwnerLabel(l);
-                const needsResponse = Boolean(l.original_inquiry) && stage === 'New';
+                const needsResponse = Boolean(l.original_inquiry) && stage === 'New' && !l.response_sent;
                 const profileField = (label, value, field, full=false) => `<div class="profile-info${full ? ' full' : ''}" data-profile-field="${field}"><span class="profile-key">${label}</span><strong class="profile-value">${esc(value || 'Not provided')}</strong><button class="profile-edit" onclick="editProfileField(${id}, '${field}')" aria-label="Edit ${label}">✎</button></div>`;
                 const profileOverview = `<section class="profile-overview">${profileField('Customer name', l.name, 'name')}${profileField('Assigned to', owner, 'assigned', false)}${profileField('Phone', l.phone, 'phone')}${profileField('Email', l.email, 'email')}${profileField('Interested product', l.equipment, 'equipment', true)}</section>`;
                 const stageControl = lockedSold ? `<div class="field"><label>Pipeline stage</label><div class="meta"><span class="pill">Sold</span> Revert the sale to change this stage.</div></div>` : `<div class="field"><label>Pipeline stage</label><select id="detailStage" onchange="toggleSoldFields()">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
@@ -2739,8 +2762,8 @@
                 const sourcePill = `<span class="pill">${sourceIcon} ${esc(source)}</span>`;
                 const unread = needsResponse ? '<span class="unread-inquiry"><span class="unread-dot"></span>Unread · reply needed</span>' : '';
                 const replyButton = '<button class="mini" style="background:var(--brand);color:#fff" onclick="openResponseComposer()">Reply</button>';
-                const sourceCard = inquiry ? `<div class="card" id="originalInquiry" style="margin:14px 0"><div class="itemhead"><div class="inquiry-heading"><strong>First inquiry</strong>${unread}</div><div class="actions">${sourcePill}${replyButton}</div></div><p style="margin-bottom:0">${esc(inquiry)}</p></div>` : `<div class="card" id="originalInquiry" style="margin:12px 0"><div class="itemhead"><div><strong>Lead source</strong><div class="meta" style="margin-top:4px">${sourcePill}</div></div>${replyButton}</div></div>`;
-                $('modalBody').querySelector('.profile-overview')?.insertAdjacentHTML('afterend', sourceCard);
+                const sourceCard = inquiry ? `<div class="card" id="originalInquiry" style="margin:14px 0"><div class="itemhead"><div class="inquiry-heading"><strong>First inquiry</strong>${unread}</div><div class="actions">${sourcePill}${replyButton}</div></div><p class="inquiry-copy" style="margin-bottom:0">${esc(inquiry)}</p></div>` : `<div class="card" id="originalInquiry" style="margin:12px 0"><div class="itemhead"><div><strong>Lead source</strong><div class="meta" style="margin-top:4px">${sourcePill}</div></div>${replyButton}</div></div>`;
+                $('modalBody').querySelector('.field')?.insertAdjacentHTML('afterend', sourceCard);
             }
             function insertConversationPanel(lead) {
                 const source = lead.source || 'Manual entry';
@@ -2792,15 +2815,21 @@
                 if (!body) return toast(channel === 'Callback' ? 'Add a callback note first' : 'Write a message first');
                 const lead = state.leads.find(x => String(x.id) === String(leadId));
                 const currentStage = lead?.pipeline_stage || lead?.status || 'New';
-                if (channel === 'Text message' && status === 'sent' && currentStage !== 'Contacted') return confirmTextSend(leadId, currentStage);
+                const canMoveToContacted = ['Text message', 'Email', 'Social reply', 'Callback'].includes(channel);
+                if (canMoveToContacted && status === 'sent' && currentStage !== 'Contacted') return confirmResponseSend(leadId, currentStage, channel);
                 const moveToContacted = status === 'sent-contacted';
                 const loggedStatus = ['sent-contacted', 'sent-only'].includes(status) ? 'sent' : status;
                 const type = channel === 'Callback' ? 'callback logged (simulated)' : `${channel.toLowerCase()} ${loggedStatus} (simulated)`;
+                const sentResponse = canMoveToContacted && loggedStatus === 'sent';
                 try {
                     if (demoMode) {
-                        if (lead) addLeadActivity(lead, type, body);
+                        if (lead) {
+                            addLeadActivity(lead, type, body);
+                            if (sentResponse) lead.response_sent = true;
+                        }
                     } else {
                         await api('/api/leads/' + leadId + '/activities', {method: 'POST', body: JSON.stringify({type, body})});
+                        if (lead && sentResponse) lead.response_sent = true;
                     }
                     if (moveToContacted) {
                         if (demoMode) {
@@ -2818,14 +2847,16 @@
                         renderPipeline(); renderCRM(); renderWin();
                     }
                     $('textSendConfirm')?.remove();
+                    if (sentResponse) document.querySelector('.unread-inquiry')?.remove();
                     $('composerBody').value = '';
                     await loadActivities(leadId);
-                    toast(moveToContacted ? 'Simulated text sent and customer moved to Contacted' : channel === 'Callback' ? 'Callback logged' : status === 'draft' ? 'Draft saved' : 'Simulated send recorded');
+                    toast(moveToContacted ? 'Contact recorded and customer moved to Contacted' : channel === 'Callback' ? 'Callback logged' : status === 'draft' ? 'Draft saved' : 'Simulated send recorded');
                 } catch (e) { toast(e.message) }
             }
-            function confirmTextSend(leadId, currentStage) {
+            function confirmResponseSend(leadId, currentStage, channel) {
                 if ($('textSendConfirm')) return;
-                $('modalBody').insertAdjacentHTML('beforeend', `<div class="profile-discard" id="textSendConfirm"><div class="profile-discard-card"><h3 style="margin-top:0">Move customer to Contacted?</h3><p>This simulated text will be saved in the timeline. You can also move this customer from <strong>${esc(currentStage)}</strong> to <strong>Contacted</strong>.</p><div class="actions"><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${leadId}, 'sent-contacted')">Send &amp; move to Contacted</button><button class="mini" onclick="saveResponseActivity(${leadId}, 'sent-only')">Send only</button><button class="mini" onclick="cancelTextSendConfirm()">Cancel</button></div></div></div>`);
+                const action = channel === 'Callback' ? 'Log callback' : 'Send';
+                $('modalBody').insertAdjacentHTML('beforeend', `<div class="profile-discard" id="textSendConfirm"><div class="profile-discard-card"><h3 style="margin-top:0">Move customer to Contacted?</h3><p>This simulated ${esc(channel.toLowerCase())} will be saved in the timeline. You can also move this customer from <strong>${esc(currentStage)}</strong> to <strong>Contacted</strong>.</p><div class="actions"><button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${leadId}, 'sent-contacted')">${action} &amp; move to Contacted</button><button class="mini" onclick="saveResponseActivity(${leadId}, 'sent-only')">${action} only</button><button class="mini" onclick="cancelTextSendConfirm()">Cancel</button></div></div></div>`);
             }
             function cancelTextSendConfirm() { $('textSendConfirm')?.remove() }
             function addLeadActivity(lead, type, body) {
@@ -2874,6 +2905,7 @@
                 const followupEnabled = $('detailFollowup')?.checked ?? false;
                 const previousFollowupEnabled = l.follow_up_enabled ?? !['Negotiating', 'Sold'].includes(l.pipeline_stage || l.status || stages[0]);
                 const followupChanged = previousFollowupEnabled !== followupEnabled;
+                const hasScheduledFollowup = Boolean(leadFollowupRecord(l));
                 try {
                     if (demoMode) {
                         const priorStage = l.pipeline_stage || l.status || stages[0];
@@ -2882,7 +2914,7 @@
                         l.follow_up_enabled = followupEnabled;
                         if (priorStage !== nextStage) addLeadActivity(l, 'stage changed', `Moved from ${priorStage} to ${nextStage}.`);
                         if (note) addLeadActivity(l, 'note', note);
-                        if (followupEnabled && followupChanged) state.followups.push({id: Date.now(), lead_id: id, name: l.name, due_at: new Date(Date.now() + followupReminderHours * 3600000).toISOString(), notes: 'Scheduled from CRM', status: 'Pending'});
+                        if (followupEnabled && (followupChanged || !hasScheduledFollowup)) state.followups.push({id: Date.now(), lead_id: id, name: l.name, due_at: new Date(Date.now() + followupReminderHours * 3600000).toISOString(), notes: 'Scheduled from CRM', status: 'Pending'});
                         const existingDeal = state.deals.find(d => String(d.lead_id) === String(id));
                         if (nextStage === 'Sold' && !existingDeal) {
                             state.deals.unshift({id: Date.now() + 1, lead_id: id, customer: l.name, equipment: $('detailSoldEquipment').value.trim() || l.equipment || 'Equipment to be confirmed', sale_price: Number($('detailSoldPrice').value || 0), gross_profit: Number($('detailSoldGross').value || 0), sold_at: new Date($('detailSoldDate').value + 'T12:00:00').toISOString()});
@@ -2905,7 +2937,7 @@
                     await api('/api/leads/' + id + '/pipeline', {method: 'PATCH', body: JSON.stringify({pipeline_stage: nextStage, follow_up_enabled: followupEnabled})});
                     if (note) await api('/api/leads/' + id + '/activities', {method: 'POST', body: JSON.stringify({type: 'note', body: note})});
                     if (nextStage === 'Sold') await api('/api/deals', {method: 'POST', body: JSON.stringify({lead_id: id, customer: l.name, equipment: $('detailSoldEquipment').value.trim() || l.equipment || '', sale_price: Number($('detailSoldPrice').value || 0), gross_profit: Number($('detailSoldGross').value || 0)})});
-                    if (followupEnabled && followupChanged) await api('/api/followups', {method: 'POST', body: JSON.stringify({lead_id: id, due_at: new Date(Date.now() + followupReminderHours * 3600000).toISOString(), notes: 'Scheduled from CRM'})});
+                    if (followupEnabled && (followupChanged || !hasScheduledFollowup)) await api('/api/followups', {method: 'POST', body: JSON.stringify({lead_id: id, due_at: new Date(Date.now() + followupReminderHours * 3600000).toISOString(), notes: 'Scheduled from CRM'})});
                     setProfileDirty(false); closeModal(); await loadAll();
                     if (nextStage === 'Sold' && (l.pipeline_stage || l.status) !== 'Sold') celebrateWin();
                     toast('Customer updates saved')

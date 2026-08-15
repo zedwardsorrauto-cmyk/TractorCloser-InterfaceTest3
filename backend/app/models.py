@@ -66,6 +66,7 @@ class Lead(Base):
     budget: Mapped[int] = mapped_column(Integer, default=0)
     pipeline_stage: Mapped[str] = mapped_column(String(80), default="New", index=True)
     follow_up_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    response_sent: Mapped[bool] = mapped_column(Boolean, default=False)
     is_test_data: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

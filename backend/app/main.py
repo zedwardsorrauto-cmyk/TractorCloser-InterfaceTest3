@@ -2,7 +2,7 @@ import csv
 import json
 import os
 import zipfile
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -68,6 +68,9 @@ def seed_initial_workspace() -> None:
         if column_name not in lead_columns:
             with engine.begin() as connection:
                 connection.execute(text(f"ALTER TABLE leads ADD COLUMN {column_name} {definition}"))
+    if "response_sent" not in lead_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE leads ADD COLUMN response_sent BOOLEAN DEFAULT FALSE"))
     db = SessionLocal()
     try:
         workspace = db.scalar(select(Workspace).where(Workspace.name == "Tractor Bob"))
@@ -300,6 +303,8 @@ def list_lead_activities(lead_id: int, user: User = Depends(get_current_user), d
 def create_lead_activity(lead_id: int, payload: ActivityCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> LeadActivity:
     lead = get_workspace_lead(lead_id, user, db)
     activity = LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, actor_user_id=user.id, **payload.model_dump())
+    if (any(channel in activity.type.lower() for channel in ("text message", "email", "social reply")) and "sent" in activity.type.lower() and "draft" not in activity.type.lower()) or "callback logged" in activity.type.lower():
+        lead.response_sent = True
     db.add(activity)
     audit(db, user, "lead_activity_added", lead.name, lead.workspace_id)
     db.commit()
@@ -462,6 +467,16 @@ def attach_intake_to_lead(record_id: int, lead_id: int, user: User = Depends(get
 
 @app.get("/api/followups")
 def get_followups(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    workspace_id = require_workspace(user)
+    existing_records = list(db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "followup")))
+    existing_lead_ids = {str(record.payload.get("lead_id")) for record in existing_records if record.payload.get("lead_id") is not None}
+    scheduled = False
+    for lead in db.scalars(lead_query_for_user(user)):
+        if lead.follow_up_enabled and lead.pipeline_stage not in {"Sold", "Lost"} and str(lead.id) not in existing_lead_ids:
+            db.add(WorkspaceRecord(workspace_id=workspace_id, record_type="followup", payload={"lead_id": lead.id, "name": lead.name, "due_at": (datetime.now(timezone.utc) + timedelta(hours=48)).isoformat(), "notes": "Initial pipeline follow-up", "status": "Pending"}))
+            scheduled = True
+    if scheduled:
+        db.commit()
     return list_records("followup", user, db)
 
 

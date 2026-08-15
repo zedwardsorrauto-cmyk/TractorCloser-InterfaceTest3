@@ -94,6 +94,7 @@ class LeadResponse(BaseModel):
     budget: int
     pipeline_stage: str
     follow_up_enabled: bool
+    response_sent: bool
     assigned_user_id: int | None
     is_test_data: bool
     created_at: datetime
