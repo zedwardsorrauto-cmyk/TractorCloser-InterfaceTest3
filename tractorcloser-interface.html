@@ -1405,6 +1405,8 @@
                 .modal.centered .sheet { border-radius: 18px }
                 .modalhead { align-items: flex-start; gap: 10px }
                 .modalhead h2 { font-size: 20px }
+                .deals-filter-head { align-items: stretch; flex-direction: column }
+                .deals-filter-head .field { min-width: 0 !important }
             }
         </style>
     </head>
@@ -1677,6 +1679,7 @@
                     </div>
                 </div>
                 <div class="section card">
+                    <div class="itemhead deals-filter-head" style="margin-bottom:14px"><div><h2 style="margin:0">Closed deals</h2><div class="meta">Filter the scoreboard and deal history by sale date.</div></div><div class="field" style="min-width:170px"><label for="dealDateFilter">Date range</label><select id="dealDateFilter" onchange="renderDeals()"><option value="month" selected>This month</option><option value="30days">Last 30 days</option><option value="year">This year</option><option value="all">All time</option></select></div></div>
                     <div id="deals" class="list"></div>
                 </div>
             </section>
@@ -1771,6 +1774,11 @@
                     currency: 'USD',
                     maximumFractionDigits: 0
                 }).format(Number(n || 0))
+            }
+            function formatTimestamp(value) {
+                if (!value) return 'Not recorded';
+                const date = new Date(value);
+                return Number.isNaN(date.getTime()) ? 'Not recorded' : date.toLocaleString([], {month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'});
             }
             function setCalcMode(mode) {
                 calculatorMode = mode;
@@ -2565,8 +2573,8 @@
             function renderCRM() {
                 $('crmLeads').innerHTML = state.leads.map(l => `<button class="item" data-search="${esc(searchable(l.name,l.phone,l.email,l.equipment))}" onclick="openLeadDetail(${l.id})" aria-label="Open ${esc(l.name)}"><h3>${esc(l.name)}</h3><div class="meta">${esc(l.phone || '')} · ${esc(l.email || '')}<br>${esc(l.equipment || '')} · ${esc(l.pipeline_stage || l.status)}</div></button>`).join('') || '<div class="empty">No customers yet.</div>';
                 const pending = state.followups.filter(f => f.status === 'Pending');
-                $('crmFollowups').innerHTML = pending.map(f => `<div class="item" onclick="openLeadFromRecord(${f.lead_id || 'null'},'${esc(f.name)}')"><div class="itemhead"><div><h3>${esc(f.name)}</h3><div class="meta">Due ${new Date(f.due_at).toLocaleString()}<br>${esc(f.notes || '')}</div></div><button class="mini" onclick="event.stopPropagation();completeFollowup(${f.id})">Done</button></div></div>`).join('') || '<div class="empty">No pending follow-ups.</div>';
-                $('crmAppointments').innerHTML = state.appointments.filter(a => a.status === 'Scheduled').map(a => `<div class="item" onclick="openLeadFromRecord(${a.lead_id || 'null'},'${esc(a.lead_name)}')"><div class="itemhead"><div><h3>${esc(a.lead_name)}</h3><div class="meta">${new Date(a.starts_at).toLocaleString()} · ${esc(a.type)}<br>${esc(a.notes || '')}</div></div><div class="actions"><button class="mini" onclick="event.stopPropagation();updateAppointment(${a.id},'Completed')">Complete</button><button class="mini" onclick="event.stopPropagation();updateAppointment(${a.id},'Cancelled')">Cancel</button></div></div></div>`).join('') || '<div class="empty">No appointments.</div>';
+                $('crmFollowups').innerHTML = pending.map(f => `<div class="item" onclick="openLeadFromRecord(${f.lead_id || 'null'},'${esc(f.name)}')"><div class="itemhead"><div><h3>${esc(f.name)}</h3><div class="meta">Due ${formatTimestamp(f.due_at)}<br>${esc(f.notes || '')}</div></div><button class="mini" onclick="event.stopPropagation();completeFollowup(${f.id})">Done</button></div></div>`).join('') || '<div class="empty">No pending follow-ups.</div>';
+                $('crmAppointments').innerHTML = state.appointments.filter(a => a.status === 'Scheduled').map(a => `<div class="item" onclick="openLeadFromRecord(${a.lead_id || 'null'},'${esc(a.lead_name)}')"><div class="itemhead"><div><h3>${esc(a.lead_name)}</h3><div class="meta">${formatTimestamp(a.starts_at)} · ${esc(a.type)}<br>${esc(a.notes || '')}</div></div><div class="actions"><button class="mini" onclick="event.stopPropagation();updateAppointment(${a.id},'Completed')">Complete</button><button class="mini" onclick="event.stopPropagation();updateAppointment(${a.id},'Cancelled')">Cancel</button></div></div></div>`).join('') || '<div class="empty">No appointments.</div>';
                 $('crmQuotes').innerHTML = state.quotes.map(q => `<div class="item" onclick="openLeadFromRecord(${q.lead_id || 'null'},'${esc(q.customer)}')"><div class="itemhead"><div><h3>${esc(q.customer)}</h3><div class="meta">${esc(q.equipment || '')} · ${money(q.amount)} · ${esc(q.status)}<br>${esc(q.notes || '')}</div></div><div class="actions">${q.status === 'Draft' ? `<button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Sent')">Send</button>` : ''}${['Sent', 'Viewed', 'Follow-up'].includes(q.status) ? `<button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Follow-up')">Follow up</button>` : ''}${q.status !== 'Accepted' && q.status !== 'Lost' ? `<button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Accepted')">Accepted</button><button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Lost')">Lost</button>` : ''}</div></div></div>`).join('') || '<div class="empty">No quotes yet.</div>'
                 const scheduled = state.appointments.filter(a => a.status === 'Scheduled');
                 $('crmHub').innerHTML = `<button class="crm-hub-card" onclick="openCRMView('customers')"><em>👥</em><strong>Customers</strong><span>${state.leads.length} customer records</span></button><button class="crm-hub-card" onclick="openCRMView('followups')"><em>📅</em><strong>Follow-ups</strong><span>${pending.length} pending reminder${pending.length === 1 ? '' : 's'}</span></button><button class="crm-hub-card" onclick="openCRMView('appointments')"><em>🗓️</em><strong>Appointments</strong><span>${scheduled.length} scheduled</span></button><button class="crm-hub-card" onclick="openCRMView('quotes')"><em>📄</em><strong>Quotes</strong><span>${state.quotes.length} active quote${state.quotes.length === 1 ? '' : 's'}</span></button>`
@@ -2680,7 +2688,7 @@
                 $('teamUnassigned').textContent = (team.unassigned || []).length;
                 $('teamMembers').innerHTML = `<div class="team-row team-head"><span>Salesperson</span><span>Active leads</span><span>Assigned</span><span>Sold</span><span>Gross</span></div>` + members.map(member => `<div class="team-row"><div class="team-person"><span class="team-avatar">${memberInitials(member.email)}</span><div><strong>${esc(memberLabel(member.email))}</strong><div class="member-meta"><em class="role-chip">${esc(member.role)}</em><span class="member-email">${esc(member.email)}</span></div></div></div><div class="team-metric"><b>${Number(member.active_leads || 0)}</b><span>in progress</span></div><div class="team-metric"><b>${Number(member.assigned_leads || 0)}</b><span>total leads</span></div><div class="team-metric"><b>${Number(member.deals_sold || 0)}</b><span>this month</span></div><div class="team-metric"><b>${money(member.gross)}</b><span>this month</span></div></div>`).join('') || '<div class="empty">No active team members.</div>';
                 $('teamUnassignedList').innerHTML = (team.unassigned || []).slice(0, 6).map(lead => `<div class="team-assignment"><div><strong>${esc(lead.name)}</strong><div class="meta">${esc(lead.pipeline_stage)} · ${esc(lead.equipment || 'Equipment not specified')}</div></div><button class="mini" onclick="openAssignLead(${lead.id})">Assign</button></div>`).join('') || '<div class="empty">Every active lead has an owner.</div>';
-                $('teamActivity').innerHTML = (team.activity || []).map(item => `<button class="item" onclick="openLeadDetail(${item.lead_id})"><div class="itemhead"><div><h3>${esc(item.lead_name)}</h3><div class="meta">${esc(item.type)} · ${esc(item.body || 'Updated customer record')}</div></div><span class="pill">By ${esc(memberLabel(item.actor_email || 'System'))}</span></div><div class="meta" style="margin-top:7px">${new Date(item.created_at).toLocaleString()}</div></button>`).join('') || '<div class="empty">No team activity yet.</div>';
+                $('teamActivity').innerHTML = (team.activity || []).map(item => `<button class="item" onclick="openLeadDetail(${item.lead_id})"><div class="itemhead"><div><h3>${esc(item.lead_name)}</h3><div class="meta">${esc(item.type)} · ${esc(item.body || 'Updated customer record')}</div></div><span class="pill">By ${esc(memberLabel(item.actor_email || 'System'))}</span></div><div class="meta" style="margin-top:7px">${formatTimestamp(item.created_at)}</div></button>`).join('') || '<div class="empty">No team activity yet.</div>';
             }
             function openAssignLead(leadId=null) {
                 const unassigned = state.team?.unassigned || [];
@@ -2745,13 +2753,25 @@
                 $('inventory').innerHTML = state.inventory.map(i => `<div class="item" data-search="${esc(searchable(i.year,i.make,i.model,i.features))}"><div class="itemhead"><div><h3>${esc(i.year || '')} ${esc(i.make)} ${esc(i.model)}</h3><div class="meta">${i.hours || 0} hrs · ${money(i.price)} · ${esc(i.status)}<br>${esc(i.features || '')}</div></div><div class="actions"><button class="mini" onclick="toggleInventory(${i.id},'${i.status === 'Available' ? 'Sold' : 'Available'}')">${i.status === 'Available' ? 'Mark sold' : 'Mark available'}</button><button class="mini" onclick="deleteInventory(${i.id})">Delete</button></div></div></div>`).join('') || '<div class="empty">No inventory yet.</div>'
             }
             function renderDeals() {
-                const d = state.deals;
+                const range = $('dealDateFilter')?.value || 'month';
+                const now = new Date();
+                const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+                const rollingStart = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                const yearStart = new Date(now.getFullYear(), 0, 1);
+                const d = state.deals.filter(deal => {
+                    const soldAt = new Date(deal.sold_at);
+                    if (Number.isNaN(soldAt.getTime())) return range === 'all';
+                    if (range === 'month') return soldAt >= monthStart;
+                    if (range === '30days') return soldAt >= rollingStart;
+                    if (range === 'year') return soldAt >= yearStart;
+                    return true;
+                });
                 const gross = d.reduce( (s, x) => s + Number(x.gross_profit || 0), 0)
                   , vol = d.reduce( (s, x) => s + Number(x.sale_price || 0), 0);
                 $('dSold').textContent = d.length;
                 $('dGross').textContent = money(gross);
                 $('dVolume').textContent = money(vol);
-                $('deals').innerHTML = d.map(x => `<div class="item"><div class="itemhead"><div><h3>${esc(x.customer)}</h3><div class="meta">${esc(x.equipment || '')} · ${money(x.sale_price)} sale · <b>${money(x.gross_profit)} gross</b></div></div><span class="pill">${new Date(x.sold_at).toLocaleDateString()}</span></div></div>`).join('') || '<div class="empty">No closed deals yet.</div>'
+                $('deals').innerHTML = d.map(x => `<div class="item"><div class="itemhead"><div><h3>${esc(x.customer)}</h3><div class="meta">${esc(x.equipment || '')} · ${money(x.sale_price)} sale · <b>${money(x.gross_profit)} gross</b></div></div><span class="pill">${formatTimestamp(x.sold_at)}</span></div></div>`).join('') || '<div class="empty">No closed deals in this date range.</div>'
             }
             function renderAIQueue() {
                 renderPriorityLists(state.plan?.actions || [])
@@ -2809,8 +2829,8 @@
                 const owner = leadOwnerLabel(l);
                 const hasReplyChannel = Boolean(l.phone || l.email || /meta|facebook|marketplace|instagram|social/i.test(l.source || ''));
                 const needsResponse = Boolean(l.original_inquiry) && hasReplyChannel && stage === 'New' && !l.response_sent;
-                const profileField = (label, value, field, full=false) => `<div class="profile-info${full ? ' full' : ''}" data-profile-field="${field}"><span class="profile-key">${label}</span><strong class="profile-value">${esc(value || 'Not provided')}</strong><button class="profile-edit" onclick="editProfileField(${id}, '${field}')" aria-label="Edit ${label}">✎</button></div>`;
-                const profileOverview = `<section class="profile-overview">${profileField('Customer name', l.name, 'name')}${profileField('Assigned to', owner, 'assigned', false)}${profileField('Phone', l.phone, 'phone')}${profileField('Email', l.email, 'email')}${profileField('Interested product', l.equipment, 'equipment', true)}</section>`;
+                const profileField = (label, value, field, full=false, editable=true) => `<div class="profile-info${full ? ' full' : ''}" data-profile-field="${field}"><span class="profile-key">${label}</span><strong class="profile-value">${esc(value || 'Not provided')}</strong>${editable ? `<button class="profile-edit" onclick="editProfileField(${id}, '${field}')" aria-label="Edit ${label}">✎</button>` : ''}</div>`;
+                const profileOverview = `<section class="profile-overview">${profileField('Customer name', l.name, 'name')}${profileField('Assigned to', owner, 'assigned', false)}${profileField('Phone', l.phone, 'phone')}${profileField('Email', l.email, 'email')}${profileField('Added to CRM', formatTimestamp(l.created_at), 'created', false, false)}${profileField('Interested product', l.equipment, 'equipment', true)}</section>`;
                 const stageControl = lockedSold ? `<div class="field"><label>Pipeline stage</label><div class="meta"><span class="pill">Sold</span> Revert the sale to change this stage.</div></div>` : `<div class="field"><label>Pipeline stage</label><select id="detailStage" onchange="toggleSoldFields()">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
                 const soldSummary = `<div class="card"><div class="itemhead"><h3 style="margin:0">Close the deal</h3>${existingDeal ? `<button class="danger-pill" onclick="confirmRevertDeal(${id})">Revert</button>` : ''}</div><div class="deal-summary"><div><span class="meta">Sold price</span><strong>${money(existingDeal?.sale_price ?? l.budget ?? 0)}</strong></div><div><span class="meta">Total gross</span><strong>${money(existingDeal?.gross_profit ?? 0)}</strong></div><div><span class="meta">Date sold</span><strong>${new Date(soldDate + 'T12:00:00').toLocaleDateString()}</strong></div><div class="full"><span class="meta">Model or unit sold</span><strong>${esc(existingDeal?.equipment || l.equipment || 'Equipment to be confirmed')}</strong></div></div></div>`;
                 const soldForm = `<div class="card"><h3 style="margin-top:0">Close the deal</h3><div class="formgrid"><div class="field"><label>Sold price</label><input id="detailSoldPrice" type="number" value="${existingDeal?.sale_price ?? l.budget ?? ''}"></div><div class="field"><label>Total gross</label><input id="detailSoldGross" type="number" value="${existingDeal?.gross_profit ?? ''}"></div><div class="field"><label>Date sold</label><input id="detailSoldDate" type="date" value="${soldDate}"></div><div class="field full"><label>Model or unit sold</label><input id="detailSoldEquipment" value="${esc(existingDeal?.equipment || l.equipment || '')}"></div></div></div>`;
@@ -3101,12 +3121,12 @@
                 const lead = state.leads.find(x => String(x.id) === String(id));
                 if (demoMode) {
                     const activities = lead?.activities || [];
-                    $('activityList').innerHTML = activities.map(x => `<div class="item"><b>${esc(x.type)}</b><div class="meta">${new Date(x.created_at).toLocaleString()}</div><p>${esc(x.body)}</p></div>`).join('') || '<div class="empty">No activity yet.</div>';
+                    $('activityList').innerHTML = activities.map(x => `<div class="item"><b>${esc(x.type)}</b><div class="meta">${formatTimestamp(x.created_at)}</div><p>${esc(x.body)}</p></div>`).join('') || '<div class="empty">No activity yet.</div>';
                     return
                 }
                 try {
                     const a = await api('/api/leads/' + id + '/activities');
-                    $('activityList').innerHTML = a.map(x => `<div class="item"><b>${esc(x.type)}</b><div class="meta">${new Date(x.created_at).toLocaleString()}</div><p>${esc(x.body)}</p></div>`).join('') || '<div class="empty">No activity yet.</div>'
+                    $('activityList').innerHTML = a.map(x => `<div class="item"><b>${esc(x.type)}</b><div class="meta">${formatTimestamp(x.created_at)}</div><p>${esc(x.body)}</p></div>`).join('') || '<div class="empty">No activity yet.</div>'
                 } catch (e) {
                     toast(e.message)
                 }
