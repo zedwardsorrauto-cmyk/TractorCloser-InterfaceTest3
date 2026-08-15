@@ -99,6 +99,10 @@ def seed_initial_workspace() -> None:
     if "response_sent" not in lead_columns:
         with engine.begin() as connection:
             connection.execute(text("ALTER TABLE leads ADD COLUMN response_sent BOOLEAN DEFAULT FALSE"))
+    deal_columns = {column["name"] for column in inspect(engine).get_columns("deals")}
+    if "sold_by_user_id" not in deal_columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE deals ADD COLUMN sold_by_user_id INTEGER"))
     db = SessionLocal()
     try:
         workspace = db.scalar(select(Workspace).where(Workspace.name == "Tractor Bob"))
@@ -201,6 +205,12 @@ def seed_initial_workspace() -> None:
                     for activity_type, body in activities:
                         db.add(LeadActivity(workspace_id=workspace.id, lead_id=lead.id, type=activity_type, body=body))
             db.add(WorkspaceRecord(workspace_id=workspace.id, record_type="ai_test_context", payload={"seeded": True}))
+        # Recover the salesperson for older linked deals when the lead still
+        # has an assigned owner. Unknown legacy walk-ins remain clearly labeled.
+        for deal in db.scalars(select(Deal).where(Deal.workspace_id == workspace.id, Deal.sold_by_user_id.is_(None), Deal.lead_id.is_not(None))):
+            lead = db.get(Lead, deal.lead_id)
+            if lead and lead.assigned_user_id:
+                deal.sold_by_user_id = lead.assigned_user_id
         db.commit()
     finally:
         db.close()
@@ -516,9 +526,11 @@ def record_deal(payload: DealCreate, user: User = Depends(get_current_user), db:
         existing.equipment = payload.equipment
         existing.sale_price = payload.sale_price
         existing.gross_profit = payload.gross_profit
+        if existing.sold_by_user_id is None:
+            existing.sold_by_user_id = user.id
         deal = existing
     else:
-        deal = Deal(workspace_id=workspace_id, **payload.model_dump())
+        deal = Deal(workspace_id=workspace_id, sold_by_user_id=user.id, **payload.model_dump())
         db.add(deal)
         db.flush()
     if lead:

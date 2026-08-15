@@ -2771,7 +2771,13 @@
                 $('dSold').textContent = d.length;
                 $('dGross').textContent = money(gross);
                 $('dVolume').textContent = money(vol);
-                $('deals').innerHTML = d.map(x => `<div class="item"><div class="itemhead"><div><h3>${esc(x.customer)}</h3><div class="meta">${esc(x.equipment || '')} · ${money(x.sale_price)} sale · <b>${money(x.gross_profit)} gross</b></div></div><span class="pill">${formatTimestamp(x.sold_at)}</span></div></div>`).join('') || '<div class="empty">No closed deals in this date range.</div>'
+                $('deals').innerHTML = d.map(x => `<div class="item"><div class="itemhead"><div><h3>${esc(x.customer)}</h3><div class="meta">${esc(x.equipment || '')} · ${money(x.sale_price)} sale · <b>${money(x.gross_profit)} gross</b><br>Sold by <b>${esc(dealOwnerLabel(x))}</b></div></div><span class="pill">${formatTimestamp(x.sold_at)}</span></div></div>`).join('') || '<div class="empty">No closed deals in this date range.</div>'
+            }
+            function dealOwnerLabel(deal) {
+                const member = (state.team?.members || []).find(item => String(item.id) === String(deal.sold_by_user_id));
+                if (member) return memberLabel(member.email);
+                if (state.currentUser && String(state.currentUser.id) === String(deal.sold_by_user_id)) return memberLabel(state.currentUser.email);
+                return deal.sold_by_user_id ? 'Former team member' : 'Legacy record';
             }
             function renderAIQueue() {
                 renderPriorityLists(state.plan?.actions || [])
@@ -3060,7 +3066,7 @@
                         if (followupEnabled && (followupChanged || !hasScheduledFollowup)) state.followups.push({id: Date.now(), lead_id: id, name: l.name, due_at: new Date(Date.now() + followupReminderHours * 3600000).toISOString(), notes: 'Scheduled from CRM', status: 'Pending'});
                         const existingDeal = state.deals.find(d => String(d.lead_id) === String(id));
                         if (nextStage === 'Sold' && !existingDeal) {
-                            state.deals.unshift({id: Date.now() + 1, lead_id: id, customer: l.name, equipment: $('detailSoldEquipment').value.trim() || l.equipment || 'Equipment to be confirmed', sale_price: Number($('detailSoldPrice').value || 0), gross_profit: Number($('detailSoldGross').value || 0), sold_at: new Date($('detailSoldDate').value + 'T12:00:00').toISOString()});
+                            state.deals.unshift({id: Date.now() + 1, lead_id: id, sold_by_user_id: state.currentUser?.id || null, customer: l.name, equipment: $('detailSoldEquipment').value.trim() || l.equipment || 'Equipment to be confirmed', sale_price: Number($('detailSoldPrice').value || 0), gross_profit: Number($('detailSoldGross').value || 0), sold_at: new Date($('detailSoldDate').value + 'T12:00:00').toISOString()});
                             addLeadActivity(l, 'deal recorded', `Sold for ${money($('detailSoldPrice').value)} with ${money($('detailSoldGross').value)} total gross.`);
                         } else if (nextStage === 'Sold' && existingDeal) {
                             existingDeal.equipment = $('detailSoldEquipment').value.trim() || existingDeal.equipment;
@@ -3256,7 +3262,7 @@
                             lead.follow_up_enabled = false;
                             if (equipment) lead.equipment = equipment
                         }
-                        state.deals.unshift({id: Date.now() + 1, lead_id: lead.id, customer, equipment: equipment || 'Equipment to be confirmed', sale_price: Number($('dPrice').value || 0), gross_profit: Number($('dProfit').value || 0), sold_at: new Date().toISOString()});
+                        state.deals.unshift({id: Date.now() + 1, lead_id: lead.id, sold_by_user_id: state.currentUser?.id || null, customer, equipment: equipment || 'Equipment to be confirmed', sale_price: Number($('dPrice').value || 0), gross_profit: Number($('dProfit').value || 0), sold_at: new Date().toISOString()});
                         addLeadActivity(lead, 'deal recorded', `Sold for ${money($('dPrice').value)} with ${money($('dProfit').value)} total gross.`);
                         if (state.plan?.summary) {
                             state.plan.summary.month_gross = state.deals.reduce((sum, deal) => sum + Number(deal.gross_profit || 0), 0);

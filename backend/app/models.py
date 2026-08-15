@@ -90,6 +90,7 @@ class Deal(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     workspace_id: Mapped[int] = mapped_column(ForeignKey("workspaces.id"), index=True)
     lead_id: Mapped[int | None] = mapped_column(ForeignKey("leads.id"), nullable=True, index=True)
+    sold_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     customer: Mapped[str] = mapped_column(String(160))
     equipment: Mapped[str] = mapped_column(String(240), default="")
     sale_price: Mapped[int] = mapped_column(Integer, default=0)

@@ -151,6 +151,7 @@ class DealCreate(BaseModel):
 class DealResponse(BaseModel):
     id: int
     lead_id: int | None
+    sold_by_user_id: int | None
     customer: str
     equipment: str
     sale_price: int
