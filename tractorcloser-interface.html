@@ -2859,18 +2859,22 @@
             }
             async function saveLead() {
                 try {
-                    await api('/api/leads', {
+                    const name = $('lName').value.trim();
+                    if (!name) return toast('Enter a customer name before saving');
+                    const created = await api('/api/leads', {
                         method: 'POST',
                         body: JSON.stringify({
-                            name: $('lName').value,
-                            phone: $('lPhone').value,
-                            email: $('lEmail').value,
-                            equipment: $('lEquip').value,
-                            budget: $('lBudget').value,
-                            next_follow_up: $('lDate').value || null,
-                            notes: $('lNotes').value
+                            name,
+                            phone: $('lPhone').value.trim(),
+                            email: $('lEmail').value.trim(),
+                            equipment: $('lEquip').value.trim(),
+                            budget: Number($('lBudget').value || 0)
                         })
                     });
+                    const note = $('lNotes').value.trim();
+                    const followUpDate = $('lDate').value;
+                    if (note) await api('/api/leads/' + created.id + '/activities', {method: 'POST', body: JSON.stringify({type: 'customer note', body: note})});
+                    if (followUpDate) await api('/api/followups', {method: 'POST', body: JSON.stringify({lead_id: created.id, due_at: new Date(followUpDate + 'T12:00:00').toISOString(), notes: 'Scheduled when customer was created'})});
                     closeModal();
                     await loadAll();
                     toast('Customer added')

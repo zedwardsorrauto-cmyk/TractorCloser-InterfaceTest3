@@ -417,6 +417,13 @@ def list_leads(user: User = Depends(get_current_user), db: Session = Depends(get
 @app.post("/api/leads", response_model=LeadResponse, status_code=status.HTTP_201_CREATED)
 def create_lead(payload: LeadCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Lead:
     workspace_id = require_workspace(user)
+    payload.name = payload.name.strip()
+    if not payload.name:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Customer name cannot be blank")
+    payload.phone = payload.phone.strip()
+    payload.email = payload.email.strip()
+    payload.equipment = payload.equipment.strip()
+    payload.budget = max(0, int(payload.budget or 0))
     if user.role == Role.SALESPERSON:
         payload.assigned_user_id = user.id
     if payload.assigned_user_id is not None:
