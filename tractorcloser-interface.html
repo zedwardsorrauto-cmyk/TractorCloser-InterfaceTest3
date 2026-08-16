@@ -579,6 +579,29 @@
 
             .stage-view:hover { text-decoration: underline }
 
+            /* Keep the desktop pipeline inside one working view. Extra cards
+               scroll within their own stage instead of making the page tall. */
+            @media (min-width: 851px) {
+                #page-pipeline .pipeline-desktop {
+                    grid-template-columns: repeat(4, minmax(0, 1fr));
+                    grid-template-rows: repeat(2, minmax(0, 1fr));
+                    height: min(500px, calc(100vh - 210px));
+                    margin-top: 14px;
+                    overflow: hidden;
+                }
+                #page-pipeline .stage {
+                    min-width: 0;
+                    min-height: 0;
+                    overflow: auto;
+                    padding: 10px;
+                    scrollbar-width: thin;
+                }
+                #page-pipeline .stage-title { position: sticky; top: -10px; z-index: 1; padding-top: 10px; background: #eef1f5; }
+                #page-pipeline .stage-title h3 { font-size: 13px; }
+                #page-pipeline .leadcard { margin: 6px 0; padding: 9px; }
+                #page-pipeline .product-summary { -webkit-line-clamp: 1; }
+            }
+
             .stage-editor { display: grid; gap: 8px; margin: 10px 0 14px }
             .stage-editor-row {
                 display: grid;
