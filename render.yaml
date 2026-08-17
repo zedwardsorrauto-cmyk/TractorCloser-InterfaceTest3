@@ -18,6 +18,12 @@ services:
         sync: false
       - key: SEED_DEVELOPER_PASSWORD
         sync: false
+      - key: APP_ENVIRONMENT
+        value: testing
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: INTEGRATION_INTAKE_ENABLED
+        value: false
 
 databases:
   - name: tractorcloser-db

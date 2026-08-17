@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # comma-separated browser origins allowed to call the API.
     allowed_origins: str = ""
     integration_intake_enabled: bool = False
+    app_environment: str = "testing"
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

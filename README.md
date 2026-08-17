@@ -1,6 +1,7 @@
-# TractorCloser Interface Preview
+# TractorCloser pilot workspace
 
-This package contains the current front-end prototype for interface-level testing.
+This package contains the TractorCloser frontend, FastAPI backend, and the
+release-readiness material for the Tractor Bob pilot.
 
 ## Run locally
 
@@ -12,4 +13,11 @@ Upload every file in this package to the root of a GitHub repository. For Render
 
 ## Current scope
 
-The application is a front-end prototype. Login, persistent data, integrations, reminders, and AI services will be connected during backend development.
+Authentication, persistent CRM data, roles, exports, audit history, follow-up
+records, lead intake review, and optional AI coaching are implemented for the
+pilot. External lead, messaging, phone, and inventory providers remain
+disconnected by design.
+
+See [launch readiness](docs/launch-readiness.md) and
+[integration contracts](docs/integration-contracts.md) before production or any
+real provider connection.

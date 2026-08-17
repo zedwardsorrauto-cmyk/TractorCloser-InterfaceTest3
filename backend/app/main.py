@@ -9,12 +9,13 @@ from zoneinfo import ZoneInfo
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from sqlalchemy import inspect, select, text
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 from openai import OpenAI
 
 from .config import get_settings
 from .database import Base, SessionLocal, engine, get_db
+from .migrations import current_schema_version, run_schema_migrations
 from .models import AuditEvent, Deal, Lead, LeadActivity, Role, SystemSetting, User, Workspace, WorkspaceRecord
 from .schemas import ActivityCreate, ActivityResponse, ClosingCoachRequest, ClosingCoachResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadProfileUpdate, LeadResponse, LoginRequest, LoginResponse, ManagerBriefResponse, PasswordSetupRequest, SalesManagerRequest, SalesManagerResponse, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
 from .security import create_access_token, get_current_user, hash_password, verify_password
@@ -77,42 +78,7 @@ def json_coaching_output(raw: str) -> dict:
 
 def seed_initial_workspace() -> None:
     Base.metadata.create_all(bind=engine)
-    # create_all does not add new columns to an already-running test database.
-    # Keep this small, idempotent compatibility step until formal migrations are added.
-    columns = {column["name"] for column in inspect(engine).get_columns("leads")}
-    if "assigned_user_id" not in columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE leads ADD COLUMN assigned_user_id INTEGER"))
-    activity_columns = {column["name"] for column in inspect(engine).get_columns("lead_activities")}
-    if "actor_user_id" not in activity_columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE lead_activities ADD COLUMN actor_user_id INTEGER"))
-    user_columns = {column["name"] for column in inspect(engine).get_columns("users")}
-    if "session_version" not in user_columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE users ADD COLUMN session_version INTEGER DEFAULT 1"))
-    if "must_change_password" not in user_columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE users ADD COLUMN must_change_password BOOLEAN DEFAULT FALSE"))
-    lead_columns = {column["name"] for column in inspect(engine).get_columns("leads")}
-    for column_name, definition in {
-        "source": "VARCHAR(100) DEFAULT 'Manual'",
-        "source_reference": "VARCHAR(240) DEFAULT ''",
-        "external_source_id": "VARCHAR(240) DEFAULT ''",
-        "contact_consent": "VARCHAR(40) DEFAULT 'Unknown'",
-        "preferred_contact_channel": "VARCHAR(40) DEFAULT ''",
-        "original_inquiry": "TEXT DEFAULT ''",
-    }.items():
-        if column_name not in lead_columns:
-            with engine.begin() as connection:
-                connection.execute(text(f"ALTER TABLE leads ADD COLUMN {column_name} {definition}"))
-    if "response_sent" not in lead_columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE leads ADD COLUMN response_sent BOOLEAN DEFAULT FALSE"))
-    deal_columns = {column["name"] for column in inspect(engine).get_columns("deals")}
-    if "sold_by_user_id" not in deal_columns:
-        with engine.begin() as connection:
-            connection.execute(text("ALTER TABLE deals ADD COLUMN sold_by_user_id INTEGER"))
+    run_schema_migrations(engine)
     db = SessionLocal()
     try:
         workspace = db.scalar(select(Workspace).where(Workspace.name == "Tractor Bob"))
@@ -235,7 +201,7 @@ def startup() -> None:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    return {"status": "ok", "environment": settings.app_environment, "schema_version": current_schema_version(engine)}
 
 
 @app.post("/api/auth/login", response_model=LoginResponse)
@@ -520,6 +486,8 @@ def integration_health(user: User = Depends(get_current_user), db: Session = Dep
     return {
         "testing_mode": not bool(settings.allowed_origins),
         "intake_enabled": settings.integration_intake_enabled,
+        "environment": settings.app_environment,
+        "schema_version": current_schema_version(engine),
         "providers": providers,
         "rules": [
             "Incoming records remain in Intake until an authorized user accepts or matches them.",
@@ -539,7 +507,7 @@ def list_lead_activities(lead_id: int, user: User = Depends(get_current_user), d
 def create_lead_activity(lead_id: int, payload: ActivityCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> LeadActivity:
     lead = get_workspace_lead(lead_id, user, db)
     activity = LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, actor_user_id=user.id, **payload.model_dump())
-    if (any(channel in activity.type.lower() for channel in ("text message", "email", "social reply")) and "sent" in activity.type.lower() and "draft" not in activity.type.lower()) or "callback logged" in activity.type.lower():
+    if (any(channel in activity.type.lower() for channel in ("text message", "email", "social reply")) and "sent" in activity.type.lower() and "draft" not in activity.type.lower()) or "callback" in activity.type.lower():
         lead.response_sent = True
     db.add(activity)
     audit(db, user, "lead_activity_added", lead.name, lead.workspace_id)
@@ -1087,7 +1055,7 @@ def export_workspace_backup(user: User = Depends(get_current_user), db: Session 
     archive = BytesIO()
     with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:
         bundle.writestr("manifest.json", json.dumps({"workspace": workspace.name if workspace else "Workspace", "timezone": workspace.timezone if workspace else None, "exported_at": datetime.now(timezone.utc).isoformat(), "format": "TractorCloser workspace backup"}, indent=2))
-        bundle.writestr("customers.csv", csv_content(["id", "name", "phone", "email", "equipment", "budget", "pipeline_stage", "assigned_to", "follow_up_enabled", "test_data", "created_at", "updated_at"], [[lead.id, lead.name, lead.phone, lead.email, lead.equipment, lead.budget, lead.pipeline_stage, user_emails.get(lead.assigned_user_id, ""), lead.follow_up_enabled, lead.is_test_data, lead.created_at.isoformat() if lead.created_at else "", lead.updated_at.isoformat() if lead.updated_at else ""] for lead in leads]))
+        bundle.writestr("customers.csv", csv_content(["id", "name", "phone", "email", "equipment", "source", "source_reference", "external_source_id", "contact_consent", "preferred_contact_channel", "budget", "pipeline_stage", "assigned_to", "follow_up_enabled", "test_data", "created_at", "updated_at"], [[lead.id, lead.name, lead.phone, lead.email, lead.equipment, lead.source, lead.source_reference, lead.external_source_id, lead.contact_consent, lead.preferred_contact_channel, lead.budget, lead.pipeline_stage, user_emails.get(lead.assigned_user_id, ""), lead.follow_up_enabled, lead.is_test_data, lead.created_at.isoformat() if lead.created_at else "", lead.updated_at.isoformat() if lead.updated_at else ""] for lead in leads]))
         bundle.writestr("deals.csv", csv_content(["id", "customer", "lead", "equipment", "sale_price", "gross_profit", "sold_at"], [[deal.id, deal.customer, lead_names.get(deal.lead_id, ""), deal.equipment, deal.sale_price, deal.gross_profit, deal.sold_at.isoformat() if deal.sold_at else ""] for deal in deals]))
         bundle.writestr("customer_activity.csv", csv_content(["id", "customer", "type", "detail", "performed_by", "created_at"], [[activity.id, lead_names.get(activity.lead_id, ""), activity.type, activity.body, user_emails.get(activity.actor_user_id, "System"), activity.created_at.isoformat() if activity.created_at else ""] for activity in activities]))
         bundle.writestr("team_members.csv", csv_content(["email", "role", "active", "created_at"], [[record.email, record.role.value, record.active, record.created_at.isoformat() if record.created_at else ""] for record in users]))
