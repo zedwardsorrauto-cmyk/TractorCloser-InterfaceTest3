@@ -1911,10 +1911,13 @@
                     openSavedQuote(quote.id);
                     return
                 }
-                go('crm'); openQuoteForm();
+                openQuoteForm(quoteLeadId, quote);
             }
             function startQuoteForLead(leadId) {
-                if (!leadId) return chooseQuoteCustomer();
+                if (!leadId) {
+                    quoteLeadId = null;
+                    return chooseQuoteCustomer();
+                }
                 quoteLeadId = leadId || null;
                 const lead = state.leads.find(x => String(x.id) === String(quoteLeadId));
                 go('calculator');
@@ -3453,10 +3456,23 @@
                     toast(e.message)
                 }
             }
-            function openQuoteForm() {
-                openModal('Create quote', `<div class="formgrid"><div class="field full"><label>Customer</label><select id="qLead"><option value="">No linked lead</option>${leadOptions(true)}</select></div><div class="field"><label>Customer name</label><input id="qCustomer"></div><div class="field"><label>Equipment</label><input id="qEquipment"></div><div class="field"><label>Amount</label><input id="qAmount" type="number"></div><div class="field"><label>Status</label><select id="qStatus"><option>Draft</option><option>Sent</option></select></div><div class="field full"><label>Notes</label><textarea id="qNotes" placeholder="What is included and what decision comes next?"></textarea></div></div><div class="actions"><button class="btn brand" onclick="saveQuote()">Create quote</button><button class="btn light" onclick="closeModal();go('calculator')">Use payment calculator</button></div>`)
+            function openQuoteForm(linkedLeadId=null, preset={}) {
+                const selectedLeadId = linkedLeadId || quoteLeadId || null;
+                const linkedLead = state.leads.find(lead => String(lead.id) === String(selectedLeadId));
+                const leadChoices = state.leads.map(lead => `<option value="${lead.id}" ${String(lead.id) === String(selectedLeadId) ? 'selected' : ''}>${esc(lead.name)} · ${esc(lead.equipment || '')}</option>`).join('');
+                const customer = preset.customer || linkedLead?.name || '';
+                const equipment = preset.equipment || linkedLead?.equipment || '';
+                const amount = preset.amount ?? '';
+                const notes = preset.notes || '';
+                openModal('Create quote', `<div class="formgrid"><div class="field full"><label>Customer</label><select id="qLead" onchange="syncQuoteLead()"><option value="">No linked lead</option>${leadChoices}</select></div><div class="field"><label>Customer name</label><input id="qCustomer" value="${esc(customer)}"></div><div class="field"><label>Equipment</label><input id="qEquipment" value="${esc(equipment)}"></div><div class="field"><label>Amount</label><input id="qAmount" type="number" value="${esc(amount)}"></div><div class="field full"><label>Notes</label><textarea id="qNotes" placeholder="What is included and what decision comes next?">${esc(notes)}</textarea></div></div><div class="actions"><button class="btn light" onclick="saveQuote('Draft')">Save as draft</button><button class="btn brand" onclick="saveQuote('Sent')">Send</button><button class="btn light" onclick="closeModal();go('calculator')">Use payment calculator</button></div>`)
             }
-            async function saveQuote() {
+            function syncQuoteLead() {
+                const lead = state.leads.find(item => String(item.id) === String($('qLead').value));
+                if (!lead) return;
+                $('qCustomer').value = lead.name || '';
+                $('qEquipment').value = lead.equipment || '';
+            }
+            async function saveQuote(status='Draft') {
                 try {
                     const leadId = $('qLead').value || null;
                     let customer = $('qCustomer').value.trim()
@@ -3475,13 +3491,13 @@
                             customer,
                             equipment,
                             amount: $('qAmount').value,
-                            status: $('qStatus').value,
+                            status,
                             notes: $('qNotes').value
                         })
                     });
                     closeModal();
                     await loadAll();
-                    toast('Quote created')
+                    toast(status === 'Sent' ? 'Quote marked sent' : 'Quote saved as draft')
                 } catch (e) {
                     toast(e.message)
                 }
