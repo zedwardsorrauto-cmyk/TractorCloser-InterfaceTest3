@@ -381,6 +381,29 @@
                 font-size: 12px
             }
 
+            .quote-breakdown {
+                display: grid;
+                gap: 0;
+                margin-top: 16px;
+                border: 1px solid var(--line);
+                border-radius: 14px;
+                overflow: hidden
+            }
+
+            .quote-breakdown > div {
+                display: flex;
+                justify-content: space-between;
+                gap: 18px;
+                padding: 11px 13px;
+                border-top: 1px solid var(--line);
+                color: var(--muted)
+            }
+
+            .quote-breakdown > div:first-child { border-top: 0 }
+            .quote-breakdown b { color: var(--ink) }
+            .quote-breakdown .quote-total { background: #f5f1ff; color: #4f24aa; font-weight: 800 }
+            .quote-breakdown .quote-total b { color: #4f24aa; font-size: 17px }
+
             .danger-pill {
                 border: 0;
                 border-radius: 999px;
@@ -760,7 +783,15 @@
             .modalhead {
                 display: flex;
                 justify-content: space-between;
-                align-items: center
+                align-items: center;
+                position: sticky;
+                top: -22px;
+                z-index: 6;
+                margin: -22px -22px 14px;
+                padding: 18px 22px 12px;
+                background: rgba(255,255,255,.96);
+                backdrop-filter: blur(8px);
+                border-bottom: 1px solid rgba(215,222,217,.8)
             }
             .modal-title-group { min-width: 0 }
             .modal-title-group h2 { margin: 0 }
@@ -1432,7 +1463,7 @@
                 .modal { padding: 8px }
                 .sheet { width: 100%; max-height: 94vh; padding: 16px; border-radius: 18px 18px 0 0 }
                 .modal.centered .sheet { border-radius: 18px }
-                .modalhead { align-items: flex-start; gap: 10px }
+                .modalhead { align-items: flex-start; gap: 10px; top: -16px; margin: -16px -16px 12px; padding: 14px 16px 10px }
                 .modalhead h2 { font-size: 20px }
                 .deals-filter-head { align-items: stretch; flex-direction: column }
                 .deals-filter-head .field { min-width: 0 !important }
@@ -1725,7 +1756,7 @@
                 <div class="calculator-grid section">
                     <div class="card">
                         <div class="calc-mode"><button id="financeMode" class="mini active" onclick="setCalcMode('finance')">Finance deal</button><button id="cashMode" class="mini" onclick="setCalcMode('cash')">Cash deal</button></div>
-                        <div class="formgrid"><div class="field full"><label>Customer name</label><input id="calcCustomer" placeholder="Customer name" oninput="calculatePayment()"></div><div class="field full"><label>Equipment / package</label><input id="calcEquipment" placeholder="2025 Yanmar YM347 with loader" oninput="calculatePayment()"></div><div class="field"><label>Selling price</label><input id="calcPrice" type="number" value="39500" oninput="calculatePayment()"></div><div class="field"><label>Trade-in allowance</label><input id="calcTrade" type="number" value="0" oninput="calculatePayment()"></div><div id="downField" class="field"><label>Down payment</label><input id="calcDown" type="number" value="5000" oninput="calculatePayment()"></div><div class="field"><label>Estimated tax rate</label><input id="calcTax" type="number" value="7" step=".1" oninput="calculatePayment()"></div><div id="financeFields" class="field"><label>APR %</label><input id="calcApr" type="number" value="6.99" step=".01" oninput="calculatePayment()"></div><div id="termField" class="field"><label>Term (months)</label><select id="calcTerm" onchange="calculatePayment()"><option value="36">36 months</option><option value="48">48 months</option><option value="60" selected>60 months</option><option value="72">72 months</option></select></div></div><div id="paymentOptionsEditor" class="payment-options"><h3>Customer payment options</h3><div id="calcPaymentOptions"></div><button class="mini" onclick="addPaymentOption()">+ Add payment option</button></div>
+                        <div class="formgrid"><div class="field full"><label>Customer name</label><input id="calcCustomer" placeholder="Customer name" oninput="calculatePayment()"></div><div class="field full"><label>Equipment / package</label><input id="calcEquipment" placeholder="2025 Yanmar YM347 with loader" oninput="calculatePayment()"></div><div class="field"><label>Selling price</label><input id="calcPrice" type="number" value="39500" oninput="calculatePayment()"></div><div class="field"><label>Trade-in allowance</label><input id="calcTrade" type="number" value="0" oninput="calculatePayment()"></div><div id="downField" class="field"><label>Down payment</label><input id="calcDown" type="number" value="5000" oninput="calculatePayment()"></div><div class="field"><label>Sales tax rate</label><input id="calcTax" type="number" value="7" min="0" step=".1" oninput="calculatePayment()"><label class="meta" style="display:flex;align-items:center;gap:6px;margin-top:8px;text-transform:none;letter-spacing:0"><input id="calcTaxExempt" type="checkbox" onchange="toggleTaxExempt()"> Tax-exempt customer</label></div><div id="financeFields" class="field"><label>APR %</label><input id="calcApr" type="number" value="6.99" step=".01" oninput="calculatePayment()"></div><div id="termField" class="field"><label>Term (months)</label><select id="calcTerm" onchange="calculatePayment()"><option value="36">36 months</option><option value="48">48 months</option><option value="60" selected>60 months</option><option value="72">72 months</option></select></div></div><div id="paymentOptionsEditor" class="payment-options"><h3>Customer payment options</h3><div id="calcPaymentOptions"></div><button class="mini" onclick="addPaymentOption()">+ Add payment option</button></div>
                     </div>
                     <div id="customerProposal" class="card"><div class="proposal-head"><div><h2>Customer proposal</h2><div id="proposalCustomer" class="proposal-product">Prepared for your customer</div><div id="proposalEquipment" class="proposal-product">Equipment details</div></div></div><div id="fourSquare" class="four-square"></div><div id="proposalOptions" class="proposal-options"></div><p id="calcNote" class="quote-note"></p><div class="proposal-actions"><button class="mini" onclick="window.print()">Print</button><button class="btn brand" onclick="applyCalculatorToQuote()">Use in new quote</button></div></div>
                 </div>
@@ -1776,6 +1807,8 @@
             let calculatorMode = 'finance';
             let paymentOptions = [{label: '60 months', apr: 6.99, down: 5000}, {label: '72 months', apr: 7.49, down: 7500}];
             let quoteLeadId = null;
+            let quoteDraftDetails = null;
+            let pendingComposerQuote = null;
             let activeProfileId = null;
             let profileDirty = false;
             let liveSyncTimer = null;
@@ -1848,6 +1881,20 @@
                 $('paymentOptionsEditor').hidden = mode === 'cash';
                 calculatePayment();
             }
+            function toggleTaxExempt() {
+                const taxInput = $('calcTax');
+                const exempt = $('calcTaxExempt')?.checked;
+                if (!taxInput) return;
+                if (exempt) {
+                    taxInput.dataset.previousTax = taxInput.value;
+                    taxInput.value = '0';
+                    taxInput.disabled = true;
+                } else {
+                    taxInput.disabled = false;
+                    taxInput.value = taxInput.dataset.previousTax || '7';
+                }
+                calculatePayment();
+            }
             function renderPaymentOptions() {
                 if (!$('calcPaymentOptions')) return;
                 $('calcPaymentOptions').innerHTML = paymentOptions.map((option, index) => `<div class="payment-option"><label>Option<input value="${esc(option.label)}" oninput="updatePaymentOption(${index},'label',this.value)"></label><label>APR %<input type="number" value="${option.apr}" step=".01" oninput="updatePaymentOption(${index},'apr',this.value)"></label><label>Down payment<input type="number" value="${option.down}" oninput="updatePaymentOption(${index},'down',this.value)"></label><div id="optionPayment${index}" class="payment-result">$0/mo</div><button class="mini payment-remove" onclick="removePaymentOption(${index})" ${paymentOptions.length === 1 ? 'disabled' : ''}>Remove</button></div>`).join('')
@@ -1872,7 +1919,8 @@
                 const price = Number($('calcPrice').value || 0);
                 const trade = Number($('calcTrade').value || 0);
                 const down = Number($('calcDown').value || 0);
-                const taxRate = Number($('calcTax').value || 0) / 100;
+                const taxExempt = $('calcTaxExempt')?.checked;
+                const taxRate = taxExempt ? 0 : Number($('calcTax').value || 0) / 100;
                 const taxable = Math.max(0, price - trade);
                 const tax = taxable * taxRate;
                 const total = taxable + tax;
@@ -1897,13 +1945,23 @@
                     return `<div class="proposal-option"><div><strong>${esc(option.label || 'Payment option')}</strong><span>${Number(option.apr || 0).toFixed(2)}% APR · ${money(optionDown)} down</span></div><b>${calculatorMode === 'finance' ? money(optionPayment) + '/mo' : money(optionFinanced)}</b></div>`
                 }).join('') : '';
                 $('proposalOptions').hidden = calculatorMode === 'cash';
-                $('calcNote').textContent = calculatorMode === 'finance' ? `Primary estimate: ${money(financed)} financed for ${months} months at ${Number($('calcApr').value || 0).toFixed(2)}% APR. Payment options can be customized for a customer conversation; all figures are estimates.` : `${money(cashDue)} estimated cash due at sale. Taxes and fees may vary.`;
+                const taxDescription = taxExempt ? 'This customer is marked tax-exempt.' : `${money(tax)} estimated sales tax included.`;
+                $('calcNote').textContent = calculatorMode === 'finance' ? `Primary estimate: ${money(financed)} financed for ${months} months at ${Number($('calcApr').value || 0).toFixed(2)}% APR. ${taxDescription} Payment options can be customized for a customer conversation; all figures are estimates.` : `${money(cashDue)} estimated cash due at sale. ${taxDescription} Fees may vary.`;
             }
             function applyCalculatorToQuote() {
-                const price = $('calcPrice').value;
+                const price = Number($('calcPrice').value || 0);
+                const trade = Number($('calcTrade').value || 0);
+                const down = Number($('calcDown').value || 0);
+                const taxExempt = $('calcTaxExempt')?.checked || false;
+                const taxRate = taxExempt ? 0 : Number($('calcTax').value || 0);
+                const taxableAmount = Math.max(0, price - trade);
+                const salesTax = taxableAmount * (taxRate / 100);
+                const totalDue = taxableAmount + salesTax;
+                const financedAmount = Math.max(0, totalDue - down);
                 const equipment = $('calcEquipment').value;
                 const lead = state.leads.find(x => String(x.id) === String(quoteLeadId));
-                const quote = {id: Date.now(), lead_id: quoteLeadId, customer: $('calcCustomer').value.trim() || lead?.name || 'Customer', equipment, amount: Number(price || 0), status: 'Draft', notes: $('calcNote').textContent, type: calculatorMode, options: paymentOptions.map(x => ({...x}))};
+                const quote = {id: Date.now(), lead_id: quoteLeadId, customer: $('calcCustomer').value.trim() || lead?.name || 'Customer', equipment, amount: totalDue, sale_price: price, trade_allowance: trade, down_payment: down, tax_rate: taxRate, sales_tax: salesTax, tax_exempt: taxExempt, total_due: totalDue, financed_amount: financedAmount, status: 'Draft', notes: $('calcNote').textContent, type: calculatorMode, options: paymentOptions.map(x => ({...x}))};
+                quoteDraftDetails = quote;
                 if (demoMode) {
                     state.quotes.unshift(quote);
                     renderCRM();
@@ -1916,9 +1974,11 @@
             function startQuoteForLead(leadId) {
                 if (!leadId) {
                     quoteLeadId = null;
+                    quoteDraftDetails = null;
                     return chooseQuoteCustomer();
                 }
                 quoteLeadId = leadId || null;
+                quoteDraftDetails = null;
                 const lead = state.leads.find(x => String(x.id) === String(quoteLeadId));
                 go('calculator');
                 $('calcCustomer').value = lead?.name || '';
@@ -1946,13 +2006,28 @@
             function openSavedQuote(id) {
                 const quote = state.quotes.find(x => String(x.id) === String(id));
                 if (!quote) return;
-                openModal('Quote ready', `<div class="card"><h3>${esc(quote.customer)}</h3><div class="meta">${esc(quote.equipment || 'Equipment to be confirmed')} · ${money(quote.amount)} · ${esc(quote.status)}</div><p>${esc(quote.notes || '')}</p></div><div class="actions"><button class="btn brand" onclick="sendQuote(${quote.id})">Send quote</button><button class="btn light" onclick="closeModal();go('calculator')">Edit calculator</button></div>`)
+                const total = Number(quote.total_due ?? quote.amount ?? 0);
+                const hasTaxDetails = quote.sales_tax !== undefined || quote.sale_price !== undefined;
+                const taxDescription = quote.tax_exempt ? 'Tax-exempt customer' : `Sales tax${quote.tax_rate !== undefined ? ` (${Number(quote.tax_rate || 0).toFixed(2)}%)` : ''}`;
+                const taxRows = hasTaxDetails ? `<div class="quote-breakdown"><div><span>Selling price</span><b>${money(quote.sale_price ?? quote.amount)}</b></div><div><span>Trade-in allowance</span><b>−${money(quote.trade_allowance)}</b></div><div><span>${taxDescription}</span><b>${money(quote.sales_tax)}</b></div>${Number(quote.down_payment || 0) ? `<div><span>Down payment</span><b>−${money(quote.down_payment)}</b></div>` : ''}<div class="quote-total"><span>${quote.type === 'cash' ? 'Cash due at sale' : 'Quote total'}</span><b>${money(total)}</b></div>${quote.type === 'finance' && quote.financed_amount !== undefined ? `<div><span>Estimated amount financed</span><b>${money(quote.financed_amount)}</b></div>` : ''}</div>` : `<div class="quote-breakdown"><div class="quote-total"><span>Quote total</span><b>${money(total)}</b></div></div>`;
+                openModal('Customer quote', `<div class="card"><div class="itemhead"><div><h3>${esc(quote.customer || 'Customer')}</h3><div class="meta">${esc(quote.equipment || 'Equipment to be confirmed')}</div></div><span class="pill ${quote.status === 'Sent' ? 'brand' : ''}">${esc(quote.status || 'Draft')}</span></div>${taxRows}${quote.notes ? `<p class="meta" style="margin-top:14px">${esc(quote.notes)}</p>` : ''}</div><div class="actions">${quote.status === 'Draft' ? `<button class="btn brand" onclick="sendQuote(${quote.id})">Send quote</button>` : ''}<button class="btn light" onclick="closeModal();go('calculator')">Edit calculator</button></div>`)
             }
-            function sendQuote(id) {
+            async function sendQuote(id) {
                 const quote = state.quotes.find(x => String(x.id) === String(id));
                 if (!quote) return;
-                quote.status = 'Sent';
-                closeModal(); renderCRM(); toast(`Quote marked sent to ${quote.customer}`)
+                try {
+                    if (demoMode) {
+                        quote.status = 'Sent';
+                    } else {
+                        await api('/api/quotes/' + id, {method: 'PATCH', body: JSON.stringify({status: 'Sent'})});
+                        await loadAll();
+                    }
+                    closeModal();
+                    renderCRM();
+                    toast(`Quote marked sent to ${quote.customer}`)
+                } catch (e) {
+                    toast(e.message)
+                }
             }
             function toast(t) {
                 const x = $('toast');
@@ -2680,7 +2755,7 @@
                 const pending = state.followups.filter(f => f.status === 'Pending');
                 $('crmFollowups').innerHTML = pending.map(f => `<div class="item" onclick="openLeadFromRecord(${f.lead_id || 'null'},'${esc(f.name)}')"><div class="itemhead"><div><h3>${esc(f.name)}</h3><div class="meta">Due ${formatTimestamp(f.due_at)}<br>${esc(f.notes || '')}</div></div><button class="mini" onclick="event.stopPropagation();completeFollowup(${f.id})">Done</button></div></div>`).join('') || '<div class="empty">No pending follow-ups.</div>';
                 $('crmAppointments').innerHTML = state.appointments.filter(a => a.status === 'Scheduled').map(a => `<div class="item" onclick="openLeadFromRecord(${a.lead_id || 'null'},'${esc(a.lead_name)}')"><div class="itemhead"><div><h3>${esc(a.lead_name)}</h3><div class="meta">${formatTimestamp(a.starts_at)} · ${esc(a.type)}<br>${esc(a.notes || '')}</div></div><div class="actions"><button class="mini" onclick="event.stopPropagation();updateAppointment(${a.id},'Completed')">Complete</button><button class="mini" onclick="event.stopPropagation();updateAppointment(${a.id},'Cancelled')">Cancel</button></div></div></div>`).join('') || '<div class="empty">No appointments.</div>';
-                $('crmQuotes').innerHTML = state.quotes.map(q => `<div class="item" onclick="openLeadFromRecord(${q.lead_id || 'null'},'${esc(q.customer)}')"><div class="itemhead"><div><h3>${esc(q.customer)}</h3><div class="meta">${esc(q.equipment || '')} · ${money(q.amount)} · ${esc(q.status)}<br>${esc(q.notes || '')}</div></div><div class="actions">${q.status === 'Draft' ? `<button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Sent')">Send</button>` : ''}${['Sent', 'Viewed', 'Follow-up'].includes(q.status) ? `<button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Follow-up')">Follow up</button>` : ''}${q.status !== 'Accepted' && q.status !== 'Lost' ? `<button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Accepted')">Accepted</button><button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Lost')">Lost</button>` : ''}</div></div></div>`).join('') || '<div class="empty">No quotes yet.</div>'
+                $('crmQuotes').innerHTML = state.quotes.map(q => `<div class="item" onclick="openSavedQuote(${q.id})"><div class="itemhead"><div><h3>${esc(q.customer)}</h3><div class="meta">${esc(q.equipment || '')} · ${money(q.total_due ?? q.amount)} · ${esc(q.status)}<br>${esc(q.notes || '')}</div></div><div class="actions">${q.status === 'Draft' ? `<button class="mini" onclick="event.stopPropagation();sendQuote(${q.id})">Send</button>` : ''}${['Sent', 'Viewed', 'Follow-up'].includes(q.status) ? `<button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Follow-up')">Follow up</button>` : ''}${q.status !== 'Accepted' && q.status !== 'Lost' ? `<button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Accepted')">Accepted</button><button class="mini" onclick="event.stopPropagation();updateQuote(${q.id},'Lost')">Lost</button>` : ''}</div></div></div>`).join('') || '<div class="empty">No quotes yet.</div>'
                 const scheduled = state.appointments.filter(a => a.status === 'Scheduled');
                 $('crmHub').innerHTML = `<button class="crm-hub-card" onclick="openCRMView('customers')"><em>👥</em><strong>Customers</strong><span>${state.leads.length} customer records</span></button><button class="crm-hub-card" onclick="openCRMView('followups')"><em>📅</em><strong>Follow-ups</strong><span>${pending.length} pending reminder${pending.length === 1 ? '' : 's'}</span></button><button class="crm-hub-card" onclick="openCRMView('appointments')"><em>🗓️</em><strong>Appointments</strong><span>${scheduled.length} scheduled</span></button><button class="crm-hub-card" onclick="openCRMView('quotes')"><em>📄</em><strong>Quotes</strong><span>${state.quotes.length} active quote${state.quotes.length === 1 ? '' : 's'}</span></button>`
             }
@@ -2949,7 +3024,7 @@
                 const stageControl = lockedSold ? `<div class="field"><label>Pipeline stage</label><div class="meta"><span class="pill">Sold</span> Revert the sale to change this stage.</div></div>` : `<div class="field"><label>Pipeline stage</label><select id="detailStage" onchange="toggleSoldFields()">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
                 const soldSummary = `<div class="card"><div class="itemhead"><h3 style="margin:0">Close the deal</h3>${existingDeal ? `<button class="danger-pill" onclick="confirmRevertDeal(${id})">Revert</button>` : ''}</div><div class="deal-summary"><div><span class="meta">Sold price</span><strong>${money(existingDeal?.sale_price ?? l.budget ?? 0)}</strong></div><div><span class="meta">Total gross</span><strong>${money(existingDeal?.gross_profit ?? 0)}</strong></div><div><span class="meta">Date sold</span><strong>${new Date(soldDate + 'T12:00:00').toLocaleDateString()}</strong></div><div class="full"><span class="meta">Model or unit sold</span><strong>${esc(existingDeal?.equipment || l.equipment || 'Equipment to be confirmed')}</strong></div></div></div>`;
                 const soldForm = `<div class="card"><h3 style="margin-top:0">Close the deal</h3><div class="formgrid"><div class="field"><label>Sold price</label><input id="detailSoldPrice" type="number" value="${existingDeal?.sale_price ?? l.budget ?? ''}"></div><div class="field"><label>Total gross</label><input id="detailSoldGross" type="number" value="${existingDeal?.gross_profit ?? ''}"></div><div class="field"><label>Date sold</label><input id="detailSoldDate" type="date" value="${soldDate}"></div><div class="field full"><label>Model or unit sold</label><input id="detailSoldEquipment" value="${esc(existingDeal?.equipment || l.equipment || '')}"></div></div></div>`;
-                openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="askSalesManager(${id})">✦ Ask Sales Manager</button><button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.amount)} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
+                openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="askSalesManager(${id})">✦ Ask Sales Manager</button><button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.total_due ?? q.amount)} · ${q.tax_exempt ? 'Tax-exempt' : q.sales_tax !== undefined ? `Tax ${money(q.sales_tax)}` : 'Tax not recorded'} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
                 $('modalMeta').textContent = `${leadSourceIcon(l.source)} ${l.source || 'Manual'} · Added to CRM ${formatTimestamp(l.created_at)}`;
                 activeProfileId = id;
                 setProfileDirty(false);
@@ -3041,12 +3116,23 @@
                 ];
                 const preferredChannel = isMissedCall && hasPhone ? 'Callback' : isSocial ? 'Social reply' : isEmailSource && hasEmail ? 'Email' : isPhoneSource && hasPhone ? 'Text message' : hasEmail ? 'Email' : hasPhone ? 'Text message' : 'Internal follow-up';
                 const options = channelOptions.map(([value, enabled, label]) => `<option value="${value}" ${value === preferredChannel ? 'selected' : ''} ${enabled ? '' : 'disabled'}>${label}${enabled ? '' : ' — unavailable'}</option>`).join('') + (preferredChannel === 'Internal follow-up' ? '<option value="Internal follow-up" selected>Internal follow-up</option>' : '');
-                const composer = `<section class="card" id="responseComposer" style="margin:14px 0" hidden><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.</div></div><span class="pill">Safe test mode</span></div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${options}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button id="composerDraftButton" class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button id="composerPrimaryButton" class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Send</button></div></section>`;
+                const attachedQuote = pendingComposerQuote?.leadId === lead.id ? `<span class="pill">Quote ready to include</span>` : '<span class="pill">Safe test mode</span>';
+                const composer = `<section class="card" id="responseComposer" style="margin:14px 0" hidden><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.</div></div>${attachedQuote}</div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${options}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button class="mini" onclick="createQuoteFromComposer(${lead.id})">Create quote</button><button id="composerDraftButton" class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button id="composerPrimaryButton" class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Send</button></div></section>`;
                 const inquiry = $('originalInquiry');
                 if (inquiry) inquiry.insertAdjacentHTML('afterend', composer);
                 else $('modalBody').insertAdjacentHTML('afterbegin', composer);
                 $('activityList').insertAdjacentHTML('beforebegin', '<hr><h3>Customer timeline</h3>');
                 updateComposerHint();
+            }
+            function createQuoteFromComposer(leadId) {
+                pendingComposerQuote = {
+                    leadId,
+                    channel: $('composerChannel')?.value || '',
+                    message: $('composerBody')?.value || '',
+                };
+                closeModal(true);
+                startQuoteForLead(leadId);
+                toast('Create the quote, then return to send it with your message');
             }
             function openResponseComposer() {
                 const composer = $('responseComposer');
@@ -3099,16 +3185,18 @@
                 if (canMoveToContacted && status === 'sent' && currentStage !== 'Contacted') return confirmResponseSend(leadId, currentStage, channel);
                 const moveToContacted = status === 'sent-contacted';
                 const loggedStatus = ['sent-contacted', 'sent-only'].includes(status) ? 'sent' : status;
-                const type = channel === 'Callback' ? 'callback activity recorded' : `${channel.toLowerCase()} ${loggedStatus} (simulated)`;
+                const attachedQuote = pendingComposerQuote?.leadId === leadId ? pendingComposerQuote : null;
+                const activityBody = attachedQuote ? `${body}\n\nQuote included: ${attachedQuote.customer || 'Customer quote'}${attachedQuote.id ? ' #' + attachedQuote.id : ''}.` : body;
+                const type = channel === 'Callback' ? 'callback activity recorded' : `${channel.toLowerCase()} ${loggedStatus}${attachedQuote ? ' with quote' : ''} (simulated)`;
                 const sentResponse = canMoveToContacted && loggedStatus === 'sent';
                 try {
                     if (demoMode) {
                         if (lead) {
-                            addLeadActivity(lead, type, body);
+                            addLeadActivity(lead, type, activityBody);
                             if (sentResponse) lead.response_sent = true;
                         }
                     } else {
-                        await api('/api/leads/' + leadId + '/activities', {method: 'POST', body: JSON.stringify({type, body})});
+                        await api('/api/leads/' + leadId + '/activities', {method: 'POST', body: JSON.stringify({type, body: activityBody})});
                         if (lead && sentResponse) lead.response_sent = true;
                     }
                     if (moveToContacted) {
@@ -3128,6 +3216,7 @@
                     }
                     $('textSendConfirm')?.remove();
                     if (sentResponse) document.querySelector('.unread-inquiry')?.remove();
+                    if (sentResponse && attachedQuote) pendingComposerQuote = null;
                     $('composerBody').value = '';
                     await loadActivities(leadId);
                     toast(moveToContacted ? 'Contact recorded and customer moved to Contacted' : channel === 'Callback' ? 'Callback logged' : status === 'draft' ? 'Draft saved' : 'Simulated send recorded');
@@ -3459,12 +3548,15 @@
             function openQuoteForm(linkedLeadId=null, preset={}) {
                 const selectedLeadId = linkedLeadId || quoteLeadId || null;
                 const linkedLead = state.leads.find(lead => String(lead.id) === String(selectedLeadId));
+                const quoteDetails = Object.keys(preset).length ? preset : (String(quoteDraftDetails?.lead_id) === String(selectedLeadId) ? quoteDraftDetails : {});
                 const leadChoices = state.leads.map(lead => `<option value="${lead.id}" ${String(lead.id) === String(selectedLeadId) ? 'selected' : ''}>${esc(lead.name)} · ${esc(lead.equipment || '')}</option>`).join('');
-                const customer = preset.customer || linkedLead?.name || '';
-                const equipment = preset.equipment || linkedLead?.equipment || '';
-                const amount = preset.amount ?? '';
-                const notes = preset.notes || '';
-                openModal('Create quote', `<div class="formgrid"><div class="field full"><label>Customer</label><select id="qLead" onchange="syncQuoteLead()"><option value="">No linked lead</option>${leadChoices}</select></div><div class="field"><label>Customer name</label><input id="qCustomer" value="${esc(customer)}"></div><div class="field"><label>Equipment</label><input id="qEquipment" value="${esc(equipment)}"></div><div class="field"><label>Amount</label><input id="qAmount" type="number" value="${esc(amount)}"></div><div class="field full"><label>Notes</label><textarea id="qNotes" placeholder="What is included and what decision comes next?">${esc(notes)}</textarea></div></div><div class="actions"><button class="btn light" onclick="saveQuote('Draft')">Save as draft</button><button class="btn brand" onclick="saveQuote('Sent')">Send</button><button class="btn light" onclick="closeModal();go('calculator')">Use payment calculator</button></div>`)
+                const customer = quoteDetails.customer || linkedLead?.name || '';
+                const equipment = quoteDetails.equipment || linkedLead?.equipment || '';
+                const amount = quoteDetails.total_due ?? quoteDetails.amount ?? '';
+                const notes = quoteDetails.notes || '';
+                const taxSummary = quoteDetails.total_due !== undefined ? `<div class="card" style="margin:0 0 14px"><strong>${quoteDetails.tax_exempt ? 'Tax-exempt customer' : `Sales tax: ${money(quoteDetails.sales_tax)} (${Number(quoteDetails.tax_rate || 0).toFixed(2)}%)`}</strong><div class="meta">Quote total: ${money(quoteDetails.total_due)}${quoteDetails.type === 'finance' ? ` · Estimated financed amount: ${money(quoteDetails.financed_amount)}` : ''}</div></div>` : '';
+                const calculatorButton = selectedLeadId ? '' : '<button class="btn light" onclick="closeModal();go(\'calculator\')">Use payment calculator</button>';
+                openModal('Create quote', `${taxSummary}<div class="formgrid"><div class="field full"><label>Customer</label><select id="qLead" onchange="syncQuoteLead()"><option value="">No linked lead</option>${leadChoices}</select></div><div class="field"><label>Customer name</label><input id="qCustomer" value="${esc(customer)}"></div><div class="field"><label>Equipment</label><input id="qEquipment" value="${esc(equipment)}"></div><div class="field"><label>${quoteDetails.total_due !== undefined ? 'Quote total (tax included)' : 'Amount'}</label><input id="qAmount" type="number" value="${esc(amount)}"></div><div class="field full"><label>Notes</label><textarea id="qNotes" placeholder="What is included and what decision comes next?">${esc(notes)}</textarea></div></div><div class="actions"><button class="btn light" onclick="saveQuote('Draft')">Save as draft</button><button class="btn brand" onclick="saveQuote('Sent')">Send</button>${calculatorButton}</div>`)
             }
             function syncQuoteLead() {
                 const lead = state.leads.find(item => String(item.id) === String($('qLead').value));
@@ -3484,7 +3576,8 @@
                     }
                     if (!customer)
                         return toast('Customer is required');
-                    await api('/api/quotes', {
+                    const calculatorQuote = quoteDraftDetails?.lead_id === Number(leadId) ? quoteDraftDetails : {};
+                    const created = await api('/api/quotes', {
                         method: 'POST',
                         body: JSON.stringify({
                             lead_id: leadId,
@@ -3492,11 +3585,44 @@
                             equipment,
                             amount: $('qAmount').value,
                             status,
-                            notes: $('qNotes').value
+                            notes: $('qNotes').value,
+                            sale_price: calculatorQuote.sale_price ?? Number($('qAmount').value || 0),
+                            trade_allowance: calculatorQuote.trade_allowance ?? 0,
+                            down_payment: calculatorQuote.down_payment ?? 0,
+                            tax_rate: calculatorQuote.tax_rate ?? 0,
+                            sales_tax: calculatorQuote.sales_tax ?? 0,
+                            tax_exempt: calculatorQuote.tax_exempt ?? false,
+                            total_due: calculatorQuote.total_due ?? Number($('qAmount').value || 0),
+                            financed_amount: calculatorQuote.financed_amount ?? 0,
+                            type: calculatorQuote.type || 'manual',
+                            options: calculatorQuote.options || []
                         })
                     });
+                    const returnToComposer = pendingComposerQuote?.leadId === Number(leadId);
+                    if (returnToComposer) {
+                        pendingComposerQuote = {
+                            ...pendingComposerQuote,
+                            id: created.id,
+                            customer,
+                            equipment,
+                            status,
+                        };
+                    }
                     closeModal();
                     await loadAll();
+                    if (!returnToComposer) quoteDraftDetails = null;
+                    if (returnToComposer) {
+                        openLeadDetail(Number(leadId));
+                        setTimeout(() => {
+                            openResponseComposer();
+                            if ($('composerBody')) $('composerBody').value = pendingComposerQuote?.message || '';
+                            if ($('composerChannel') && pendingComposerQuote?.channel) {
+                                $('composerChannel').value = pendingComposerQuote.channel;
+                                updateComposerHint();
+                            }
+                        }, 0);
+                        return toast('Quote is ready to include with your message');
+                    }
                     toast(status === 'Sent' ? 'Quote marked sent' : 'Quote saved as draft')
                 } catch (e) {
                     toast(e.message)
