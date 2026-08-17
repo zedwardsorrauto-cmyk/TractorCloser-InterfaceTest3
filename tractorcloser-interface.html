@@ -1817,6 +1817,7 @@
             let quoteLeadId = null;
             let quoteDraftDetails = null;
             let pendingComposerQuote = null;
+            let appointmentStagePromptLeadId = null;
             let activeProfileId = null;
             let profileDirty = false;
             let liveSyncTimer = null;
@@ -2055,11 +2056,39 @@
                         await api('/api/quotes/' + id, {method: 'PATCH', body: JSON.stringify({status: 'Sent'})});
                         await loadAll();
                     }
+                    await offerStageAdvance(quote.lead_id, 'Quote', 'This quote is marked sent. Move this customer to the Quote stage?');
                     closeModal();
                     renderCRM();
                     toast(`Quote marked sent to ${quote.customer}`)
                 } catch (e) {
                     toast(e.message)
+                }
+            }
+            function canonicalStage(target) {
+                return stages.find(stage => String(stage).toLowerCase() === String(target).toLowerCase()) || target;
+            }
+            async function offerStageAdvance(leadId, targetStage, prompt) {
+                if (!leadId) return false;
+                const lead = state.leads.find(item => String(item.id) === String(leadId));
+                const destination = canonicalStage(targetStage);
+                const destinationIndex = stages.findIndex(stage => String(stage).toLowerCase() === String(destination).toLowerCase());
+                const currentIndex = stages.findIndex(stage => String(stage).toLowerCase() === String(lead?.pipeline_stage || lead?.status || '').toLowerCase());
+                if (!lead || destinationIndex < 0 || currentIndex < 0 || currentIndex >= destinationIndex) return false;
+                if (!confirm(prompt)) return false;
+                try {
+                    if (demoMode) {
+                        lead.pipeline_stage = destination;
+                        addLeadActivity(lead, 'stage changed', `Moved to ${destination}.`);
+                        renderPipeline(); renderCRM(); renderWin();
+                    } else {
+                        await api('/api/leads/' + lead.id + '/pipeline', {method: 'PATCH', body: JSON.stringify({pipeline_stage: destination})});
+                        await loadAll();
+                    }
+                    toast(`Customer moved to ${destination}`);
+                    return true;
+                } catch (e) {
+                    toast(e.message);
+                    return false;
                 }
             }
             function toast(t) {
@@ -3057,7 +3086,10 @@
                 const stageControl = lockedSold ? `<div class="field"><label>Pipeline stage</label><div class="meta"><span class="pill">Sold</span> Revert the sale to change this stage.</div></div>` : `<div class="field"><label>Pipeline stage</label><select id="detailStage" onchange="toggleSoldFields()">${stages.map(s => `<option ${s === stage ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`;
                 const soldSummary = `<div class="card"><div class="itemhead"><h3 style="margin:0">Close the deal</h3>${existingDeal ? `<button class="danger-pill" onclick="confirmRevertDeal(${id})">Revert</button>` : ''}</div><div class="deal-summary"><div><span class="meta">Sold price</span><strong>${money(existingDeal?.sale_price ?? l.budget ?? 0)}</strong></div><div><span class="meta">Total gross</span><strong>${money(existingDeal?.gross_profit ?? 0)}</strong></div><div><span class="meta">Date sold</span><strong>${new Date(soldDate + 'T12:00:00').toLocaleDateString()}</strong></div><div class="full"><span class="meta">Model or unit sold</span><strong>${esc(existingDeal?.equipment || l.equipment || 'Equipment to be confirmed')}</strong></div></div></div>`;
                 const soldForm = `<div class="card"><h3 style="margin-top:0">Close the deal</h3><div class="formgrid"><div class="field"><label>Sold price</label><input id="detailSoldPrice" type="number" value="${existingDeal?.sale_price ?? l.budget ?? ''}"></div><div class="field"><label>Total gross</label><input id="detailSoldGross" type="number" value="${existingDeal?.gross_profit ?? ''}"></div><div class="field"><label>Date sold</label><input id="detailSoldDate" type="date" value="${soldDate}"></div><div class="field full"><label>Model or unit sold</label><input id="detailSoldEquipment" value="${esc(existingDeal?.equipment || l.equipment || '')}"></div></div></div>`;
-                openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="askSalesManager(${id})">✦ Ask Sales Manager</button><button class="mini" onclick="exitProfileToQuote(${id})">Create quote</button></div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.total_due ?? q.amount)} · ${q.tax_exempt ? 'Tax-exempt' : q.sales_tax !== undefined ? `Tax ${money(q.sales_tax)}` : 'Tax not recorded'} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
+                const stageKey = String(stage).toLowerCase();
+                const stageActions = stageKey === 'new' ? `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="offerStageAdvance(${id}, 'Contacted', 'Mark this customer as contacted?')">Mark contacted</button>` : stageKey === 'contacted' ? `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="openStageAppointment(${id}, 'Appointment')">Schedule appointment</button><button class="mini" onclick="openStageAppointment(${id}, 'Demo')">Schedule demo</button>` : ['appointment','demo'].includes(stageKey) ? `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="exitProfileToQuote(${id})">Create quote</button>` : stageKey === 'quote' ? `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="exitProfileToQuote(${id})">Create updated quote</button>` : stageKey === 'negotiating' ? `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="startCloseDeal(${id})">Close the deal</button>` : '';
+                const genericQuoteAction = ['appointment', 'demo', 'quote'].includes(stageKey) ? '' : '<button class="mini" onclick="exitProfileToQuote(' + id + ')">Create quote</button>';
+                openModal(l.name, `${profileOverview}${stageControl}<div id="standardLeadControls"><div class="field"><label>Activity note</label><textarea id="activityBody" placeholder="Call result, customer commitment, objection, next step..."></textarea></div><div class="switch-row"><div class="switch-copy"><strong>Follow-up reminder</strong><span>Uses your pipeline reminder timing.</span></div><label class="switch"><input id="detailFollowup" type="checkbox" ${followupEnabled ? 'checked' : ''}><span class="switch-slider"></span></label></div></div><div id="soldDetails" ${stage === 'Sold' ? '' : 'hidden'}>${lockedSold ? soldSummary : soldForm}</div><div class="actions">${stageActions}${lockedSold ? '' : `<button class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveLeadDetail(${id})">Save</button>`}<button class="mini" onclick="askSalesManager(${id})">✦ Ask Sales Manager</button>${genericQuoteAction}</div><hr><h3>Quotes</h3><div class="list">${customerQuotes.map(q => `<button class="item" onclick="openSavedQuote(${q.id})"><strong>${esc(q.equipment || 'Quote')}</strong><div class="meta">${money(q.total_due ?? q.amount)} · ${q.tax_exempt ? 'Tax-exempt' : q.sales_tax !== undefined ? `Tax ${money(q.sales_tax)}` : 'Tax not recorded'} · ${esc(q.status)}</div></button>`).join('') || '<div class="meta">No quotes yet.</div>'}</div><hr><div id="activityList">Loading activity…</div>`);
                 $('modalMeta').textContent = `${leadSourceIcon(l.source)} ${l.source || 'Manual'} · Added to CRM ${formatTimestamp(l.created_at)}`;
                 activeProfileId = id;
                 setProfileDirty(false);
@@ -3269,6 +3301,20 @@
                 const continueToQuote = () => { closeModal(true); startQuoteForLead(id) };
                 if (profileDirty) return showProfileDiscardWarning(continueToQuote);
                 continueToQuote()
+            }
+            function openStageAppointment(leadId, type) {
+                appointmentStagePromptLeadId = Number(leadId);
+                closeModal(true);
+                openAppointment(leadId, type);
+            }
+            function startCloseDeal(id) {
+                if (!confirm('Open the close-deal form? The customer will move to Sold only after the deal details are saved.')) return;
+                const stageSelect = $('detailStage');
+                if (!stageSelect) return;
+                stageSelect.value = canonicalStage('Sold');
+                toggleSoldFields();
+                setProfileDirty(true);
+                $('soldDetails')?.scrollIntoView({behavior: 'smooth', block: 'nearest'});
             }
             function toggleSoldFields() {
                 const sold = $('detailStage').value === 'Sold';
@@ -3537,11 +3583,12 @@
             function leadOptions(includeSold=false) {
                 return state.leads.filter(l => includeSold || !['Sold', 'Lost'].includes(l.pipeline_stage || l.status)).map(l => `<option value="${l.id}">${esc(l.name)} · ${esc(l.equipment || '')}</option>`).join('')
             }
-            function openAppointment() {
+            function openAppointment(selectedLeadId=null, selectedType='Appointment') {
                 const d = new Date(Date.now() + 2 * 3600000);
                 d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
                 const local = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-                openModal('Schedule appointment', `<div class="formgrid"><div class="field full"><label>Customer</label><select id="aLead"><option value="">Select customer</option>${leadOptions()}</select></div><div class="field"><label>Date & time</label><input id="aWhen" type="datetime-local" value="${local}"></div><div class="field"><label>Type</label><select id="aType"><option>Appointment</option><option>Demo</option><option>Store visit</option><option>Delivery</option><option>Phone</option></select></div><div class="field full"><label>Notes</label><textarea id="aNotes" placeholder="What is the commitment for this appointment?"></textarea></div></div><button class="btn brand" onclick="saveAppointment()">Schedule appointment</button>`)
+                const customerChoices = state.leads.filter(l => !['Sold', 'Lost'].includes(l.pipeline_stage || l.status)).map(l => `<option value="${l.id}" ${String(l.id) === String(selectedLeadId) ? 'selected' : ''}>${esc(l.name)} · ${esc(l.equipment || '')}</option>`).join('');
+                openModal('Schedule appointment', `<div class="formgrid"><div class="field full"><label>Customer</label><select id="aLead"><option value="">Select customer</option>${customerChoices}</select></div><div class="field"><label>Date & time</label><input id="aWhen" type="datetime-local" value="${local}"></div><div class="field"><label>Type</label><select id="aType">${['Appointment', 'Demo', 'Store visit', 'Delivery', 'Phone'].map(type => `<option ${type === selectedType ? 'selected' : ''}>${type}</option>`).join('')}</select></div><div class="field full"><label>Notes</label><textarea id="aNotes" placeholder="What is the commitment for this appointment?"></textarea></div></div><button class="btn brand" onclick="saveAppointment()">Schedule appointment</button>`)
             }
             async function saveAppointment() {
                 try {
@@ -3557,8 +3604,11 @@
                             notes: $('aNotes').value
                         })
                     });
+                    const offerAppointmentStage = Number(appointmentStagePromptLeadId) === Number(leadId);
+                    appointmentStagePromptLeadId = null;
                     closeModal();
                     await loadAll();
+                    if (offerAppointmentStage) await offerStageAdvance(leadId, 'Appointment', 'Appointment scheduled. Move this customer to the Appointment stage?');
                     toast('Appointment scheduled')
                 } catch (e) {
                     toast(e.message)
@@ -3646,6 +3696,7 @@
                     }
                     closeModal();
                     await loadAll();
+                    if (status === 'Sent') await offerStageAdvance(leadId, 'Quote', 'This quote is marked sent. Move this customer to the Quote stage?');
                     if (!returnToComposer) quoteDraftDetails = null;
                     if (returnToComposer) {
                         openLeadDetail(Number(leadId));
@@ -3666,6 +3717,7 @@
             }
             async function updateQuote(id, status) {
                 try {
+                    const quote = state.quotes.find(item => String(item.id) === String(id));
                     await api('/api/quotes/' + id, {
                         method: 'PATCH',
                         body: JSON.stringify({
@@ -3673,6 +3725,7 @@
                         })
                     });
                     await loadAll();
+                    if (status === 'Sent') await offerStageAdvance(quote?.lead_id, 'Quote', 'This quote is marked sent. Move this customer to the Quote stage?');
                     toast('Quote updated')
                 } catch (e) {
                     toast(e.message)
