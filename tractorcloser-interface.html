@@ -1806,7 +1806,7 @@
             const API_BASE = 'https://tractorcloser-api-pv8y.onrender.com';
             let demoMode = false;
             let calculatorMode = 'finance';
-            let paymentOptions = [{label: '60 months', apr: 6.99, down: 5000}, {label: '72 months', apr: 7.49, down: 7500}];
+            let paymentOptions = [{term_months: 60, apr: 6.99, down: 5000}, {term_months: 72, apr: 7.49, down: 7500}];
             let quoteLeadId = null;
             let quoteDraftDetails = null;
             let pendingComposerQuote = null;
@@ -1898,14 +1898,18 @@
             }
             function renderPaymentOptions() {
                 if (!$('calcPaymentOptions')) return;
-                $('calcPaymentOptions').innerHTML = paymentOptions.map((option, index) => `<div class="payment-option"><label>Option<input value="${esc(option.label)}" oninput="updatePaymentOption(${index},'label',this.value)"></label><label>APR %<input type="number" value="${option.apr}" step=".01" oninput="updatePaymentOption(${index},'apr',this.value)"></label><label>Down payment<input type="number" value="${option.down}" oninput="updatePaymentOption(${index},'down',this.value)"></label><div id="optionPayment${index}" class="payment-result">$0/mo</div><button class="mini payment-remove" onclick="removePaymentOption(${index})" ${paymentOptions.length === 1 ? 'disabled' : ''}>Remove</button></div>`).join('')
+                $('calcPaymentOptions').innerHTML = paymentOptions.map((option, index) => {
+                    const term = Number(option.term_months || (String(option.label || '').match(/\d+/) || [60])[0]);
+                    const termChoices = Array.from({length: 10}, (_, i) => (i + 1) * 12).map(months => `<option value="${months}" ${months === term ? 'selected' : ''}>${months} months</option>`).join('');
+                    return `<div class="payment-option"><label>Term<select onchange="updatePaymentOption(${index},'term_months',this.value)">${termChoices}</select></label><label>APR %<input type="number" value="${option.apr}" step=".01" oninput="updatePaymentOption(${index},'apr',this.value)"></label><label>Down payment<input type="number" value="${option.down}" oninput="updatePaymentOption(${index},'down',this.value)"></label><div id="optionPayment${index}" class="payment-result">$0/mo</div><button class="mini payment-remove" onclick="removePaymentOption(${index})" ${paymentOptions.length === 1 ? 'disabled' : ''}>Remove</button></div>`
+                }).join('')
             }
             function updatePaymentOption(index, key, value) {
-                paymentOptions[index][key] = key === 'label' ? value : Number(value || 0);
+                paymentOptions[index][key] = Number(value || 0);
                 calculatePayment()
             }
             function addPaymentOption() {
-                paymentOptions.push({label: 'Custom option', apr: Number($('calcApr')?.value || 6.99), down: Number($('calcDown')?.value || 0)});
+                paymentOptions.push({term_months: Number($('calcTerm')?.value || 60), apr: Number($('calcApr')?.value || 6.99), down: Number($('calcDown')?.value || 0)});
                 renderPaymentOptions();
                 calculatePayment()
             }
@@ -1942,12 +1946,12 @@
                     const optionApr = Number(option.apr || 0) / 100;
                     const optionDown = Number(option.down || 0);
                     const optionFinanced = Math.max(0, total - optionDown);
-                    const optionMonths = Number((String(option.label).match(/\d+/) || [months])[0]);
+                    const optionMonths = Number(option.term_months || (String(option.label || '').match(/\d+/) || [months])[0]);
                     const optionRate = optionApr / 12;
                     const optionPayment = optionFinanced ? (optionRate ? optionFinanced * optionRate / (1 - Math.pow(1 + optionRate, -optionMonths)) : optionFinanced / optionMonths) : 0;
                     const output = $('optionPayment' + index);
                     if (output) output.textContent = calculatorMode === 'finance' ? `${money(optionPayment)}/mo` : money(optionFinanced);
-                    return `<div class="proposal-option"><div><strong>${esc(option.label || 'Payment option')}</strong><span>${Number(option.apr || 0).toFixed(2)}% APR · ${money(optionDown)} down</span></div><b>${calculatorMode === 'finance' ? money(optionPayment) + '/mo' : money(optionFinanced)}</b></div>`
+                    return `<div class="proposal-option"><div><strong>${optionMonths} months</strong><span>${Number(option.apr || 0).toFixed(2)}% APR · ${money(optionDown)} down</span></div><b>${calculatorMode === 'finance' ? money(optionPayment) + '/mo' : money(optionFinanced)}</b></div>`
                 }).join('') : '';
                 $('proposalOptions').hidden = calculatorMode === 'cash';
                 const taxDescription = taxExempt ? 'This customer is marked tax-exempt.' : `${money(tax)} estimated sales tax included.`;
@@ -1967,7 +1971,7 @@
                 const termMonths = Number($('calcTerm').value || 60);
                 const estimatedMonthlyPayment = calculatorMode === 'finance' ? monthlyPayment(financedAmount, apr, termMonths) : 0;
                 const savedOptions = calculatorMode === 'finance' ? paymentOptions.map(option => {
-                    const optionTerm = Number((String(option.label).match(/\d+/) || [termMonths])[0]);
+                    const optionTerm = Number(option.term_months || (String(option.label || '').match(/\d+/) || [termMonths])[0]);
                     const optionDown = Number(option.down || 0);
                     const optionFinanced = Math.max(0, totalDue - optionDown);
                     return {...option, term_months: optionTerm, financed_amount: optionFinanced, monthly_payment: monthlyPayment(optionFinanced, Number(option.apr || 0), optionTerm)};
@@ -2030,7 +2034,7 @@
                     const optionTerm = Number(option.term_months || (String(option.label || '').match(/\d+/) || [quote.term_months || 60])[0]);
                     const optionFinanced = option.financed_amount ?? Math.max(0, total - Number(option.down || 0));
                     const optionPayment = option.monthly_payment ?? monthlyPayment(optionFinanced, Number(option.apr || 0), optionTerm);
-                    return `<div class="proposal-option"><div><strong>${esc(option.label || `${optionTerm} months`)}</strong><span>${Number(option.apr || 0).toFixed(2)}% APR · ${money(option.down)} down</span></div><b>${money(optionPayment)}/mo</b></div>`;
+                    return `<div class="proposal-option"><div><strong>${optionTerm} months</strong><span>${Number(option.apr || 0).toFixed(2)}% APR · ${money(option.down)} down</span></div><b>${money(optionPayment)}/mo</b></div>`;
                 }).join('')}</div>` : '';
                 openModal('Customer quote', `<div class="card"><div class="itemhead"><div><h3>${esc(quote.customer || 'Customer')}</h3><div class="meta">${esc(quote.equipment || 'Equipment to be confirmed')}</div></div><span class="pill ${quote.status === 'Sent' ? 'brand' : ''}">${esc(quote.status || 'Draft')}</span></div>${financeSquare}${savedOptions}${taxRows}${quote.notes ? `<p class="meta" style="margin-top:14px">${esc(quote.notes)}</p>` : ''}</div><div class="actions">${quote.status === 'Draft' ? `<button class="btn brand" onclick="sendQuote(${quote.id})">Send quote</button>` : ''}<button class="btn light" onclick="closeModal();go('calculator')">Edit calculator</button></div>`)
             }
