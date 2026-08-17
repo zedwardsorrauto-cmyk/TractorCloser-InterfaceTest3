@@ -3181,7 +3181,7 @@
                 ];
                 const preferredChannel = isMissedCall && hasPhone ? 'Callback' : isSocial ? 'Social reply' : isEmailSource && hasEmail ? 'Email' : isPhoneSource && hasPhone ? 'Text message' : hasEmail ? 'Email' : hasPhone ? 'Text message' : 'Internal follow-up';
                 const options = channelOptions.map(([value, enabled, label]) => `<option value="${value}" ${value === preferredChannel ? 'selected' : ''} ${enabled ? '' : 'disabled'}>${label}${enabled ? '' : ' — unavailable'}</option>`).join('') + (preferredChannel === 'Internal follow-up' ? '<option value="Internal follow-up" selected>Internal follow-up</option>' : '');
-                const attachedQuote = pendingComposerQuote?.leadId === lead.id ? `<span class="pill">Quote ready to include</span>` : '<span class="pill">Safe test mode</span>';
+                const attachedQuote = String(pendingComposerQuote?.leadId) === String(lead.id) && pendingComposerQuote?.id ? `<span class="pill">Quote attached</span>` : '<span class="pill">Safe test mode</span>';
                 const composer = `<section class="card" id="responseComposer" style="margin:14px 0" hidden><div class="itemhead"><div><h3 style="margin:0">Response composer</h3><div class="meta" id="composerHint">Save a draft or simulate a send. Nothing is sent outside TractorCloser yet.</div></div>${attachedQuote}</div><div class="formgrid" style="margin-top:12px"><div class="field"><label>Reply channel</label><select id="composerChannel" onchange="updateComposerHint()">${options}</select></div><div class="field full"><label id="composerLabel">Message draft</label><textarea id="composerBody" placeholder="Write the response you want the customer to receive…"></textarea></div></div><div class="actions"><button class="mini" onclick="createQuoteFromComposer(${lead.id})">Create quote</button><button id="composerDraftButton" class="mini" onclick="saveResponseActivity(${lead.id}, 'draft')">Save draft</button><button id="composerPrimaryButton" class="mini profile-save" style="background:var(--brand);color:#fff" onclick="saveResponseActivity(${lead.id}, 'sent')">Send</button></div></section>`;
                 const inquiry = $('originalInquiry');
                 if (inquiry) inquiry.insertAdjacentHTML('afterend', composer);
@@ -3250,7 +3250,7 @@
                 if (canMoveToContacted && status === 'sent' && currentStage !== 'Contacted') return confirmResponseSend(leadId, currentStage, channel);
                 const moveToContacted = status === 'sent-contacted';
                 const loggedStatus = ['sent-contacted', 'sent-only'].includes(status) ? 'sent' : status;
-                const attachedQuote = pendingComposerQuote?.leadId === leadId ? pendingComposerQuote : null;
+                const attachedQuote = String(pendingComposerQuote?.leadId) === String(leadId) ? pendingComposerQuote : null;
                 const activityBody = attachedQuote ? `${body}\n\nQuote included: ${attachedQuote.customer || 'Customer quote'}${attachedQuote.id ? ' #' + attachedQuote.id : ''}.` : body;
                 const type = channel === 'Callback' ? 'callback activity recorded' : `${channel.toLowerCase()} ${loggedStatus}${attachedQuote ? ' with quote' : ''} (simulated)`;
                 const sentResponse = canMoveToContacted && loggedStatus === 'sent';
@@ -3279,9 +3279,20 @@
                         if (stageSelect) stageSelect.value = 'Contacted';
                         renderPipeline(); renderCRM(); renderWin();
                     }
+                    if (attachedQuote?.id && loggedStatus === 'sent') {
+                        if (demoMode) {
+                            const savedQuote = state.quotes.find(item => String(item.id) === String(attachedQuote.id));
+                            if (savedQuote) savedQuote.status = 'Sent';
+                            renderCRM();
+                        } else {
+                            await api('/api/quotes/' + attachedQuote.id, {method: 'PATCH', body: JSON.stringify({status: 'Sent'})});
+                            await loadAll();
+                        }
+                        await offerStageAdvance(leadId, 'Quote', 'The message and attached quote are ready to send. Move this customer to the Quote stage?');
+                    }
                     $('textSendConfirm')?.remove();
                     if (sentResponse) document.querySelector('.unread-inquiry')?.remove();
-                    if (sentResponse && attachedQuote) pendingComposerQuote = null;
+                    if (loggedStatus === 'sent' && attachedQuote) pendingComposerQuote = null;
                     $('composerBody').value = '';
                     await loadActivities(leadId);
                     toast(moveToContacted ? 'Contact recorded and customer moved to Contacted' : channel === 'Callback' ? 'Callback logged' : status === 'draft' ? 'Draft saved' : 'Simulated send recorded');
@@ -3639,7 +3650,9 @@
                 const notes = quoteDetails.notes || '';
                 const taxSummary = quoteDetails.total_due !== undefined ? `<div class="card" style="margin:0 0 14px"><strong>${quoteDetails.tax_exempt ? 'Tax-exempt customer' : `Sales tax: ${money(quoteDetails.sales_tax)} (${Number(quoteDetails.tax_rate || 0).toFixed(2)}%)`}</strong><div class="meta">Quote total: ${money(quoteDetails.total_due)}${quoteDetails.type === 'finance' ? ` · Estimated financed amount: ${money(quoteDetails.financed_amount)}` : ''}</div></div>` : '';
                 const calculatorButton = selectedLeadId ? '' : '<button class="btn light" onclick="closeModal();go(\'calculator\')">Use payment calculator</button>';
-                openModal('Create quote', `${taxSummary}<div class="formgrid"><div class="field full"><label>Customer</label><select id="qLead" onchange="syncQuoteLead()"><option value="">No linked lead</option>${leadChoices}</select></div><div class="field"><label>Customer name</label><input id="qCustomer" value="${esc(customer)}"></div><div class="field"><label>Equipment</label><input id="qEquipment" value="${esc(equipment)}"></div><div class="field"><label>${quoteDetails.total_due !== undefined ? 'Quote total (tax included)' : 'Amount'}</label><input id="qAmount" type="number" value="${esc(amount)}"></div><div class="field full"><label>Notes</label><textarea id="qNotes" placeholder="What is included and what decision comes next?">${esc(notes)}</textarea></div></div><div class="actions"><button class="btn light" onclick="saveQuote('Draft')">Save as draft</button><button class="btn brand" onclick="saveQuote('Sent')">Send</button>${calculatorButton}</div>`)
+                const attachToComposer = String(pendingComposerQuote?.leadId) === String(selectedLeadId);
+                const quoteActions = attachToComposer ? '<button class="btn brand" onclick="saveQuote(\'Draft\')">Attach quote to message</button>' : `<button class="btn light" onclick="saveQuote('Draft')">Save as draft</button><button class="btn brand" onclick="saveQuote('Sent')">Send</button>${calculatorButton}`;
+                openModal('Create quote', `${attachToComposer ? '<p class="muted">This quote will be saved as an attachment. It will not be sent until you send the message from the response composer.</p>' : ''}${taxSummary}<div class="formgrid"><div class="field full"><label>Customer</label><select id="qLead" onchange="syncQuoteLead()"><option value="">No linked lead</option>${leadChoices}</select></div><div class="field"><label>Customer name</label><input id="qCustomer" value="${esc(customer)}"></div><div class="field"><label>Equipment</label><input id="qEquipment" value="${esc(equipment)}"></div><div class="field"><label>${quoteDetails.total_due !== undefined ? 'Quote total (tax included)' : 'Amount'}</label><input id="qAmount" type="number" value="${esc(amount)}"></div><div class="field full"><label>Notes</label><textarea id="qNotes" placeholder="What is included and what decision comes next?">${esc(notes)}</textarea></div></div><div class="actions">${quoteActions}</div>`)
             }
             function syncQuoteLead() {
                 const lead = state.leads.find(item => String(item.id) === String($('qLead').value));
