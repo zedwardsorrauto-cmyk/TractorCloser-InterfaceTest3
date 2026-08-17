@@ -801,9 +801,9 @@
                 backdrop-filter: blur(8px);
                 border-bottom: 1px solid rgba(215,222,217,.8)
             }
-            .modal-title-group { min-width: 0 }
+            .modal-title-group { display:flex; align-items:baseline; flex-wrap:wrap; gap:8px 12px; min-width:0 }
             .modal-title-group h2 { margin: 0 }
-            .profile-added-date { display: block; margin-top: 5px; color: var(--muted); font-size: 12px; font-weight: 700 }
+            .profile-added-date { display:inline; margin:0; color:var(--muted); font-size:13px; font-weight:700 }
 
             .toast {
                 position: fixed;
@@ -3157,13 +3157,12 @@
                 } catch (e) { toast(e.message) }
             }
             function insertOriginalInquiry(lead, needsResponse=false) {
-                const source = lead.source || 'Manual entry';
                 const inquiry = lead.original_inquiry || '';
-                const sourcePill = `<span class="pill">${leadSourceIcon(source)} ${esc(source)}</span>`;
                 const unread = needsResponse ? '<span class="unread-inquiry"><span class="unread-dot"></span>Unread · reply needed</span>' : '';
                 const replyButton = needsResponse ? '<button class="mini" style="background:var(--brand);color:#fff" onclick="openResponseComposer()">Reply</button>' : '';
-                const sourceCard = inquiry ? `<div class="card" id="originalInquiry" style="margin:14px 0"><div class="itemhead"><div class="inquiry-heading"><strong>First inquiry</strong>${unread}</div><div class="actions">${sourcePill}${replyButton}</div></div><p class="inquiry-copy" style="margin-bottom:0">${esc(inquiry)}</p></div>` : `<div class="card" id="originalInquiry" style="margin:12px 0"><div class="itemhead"><div><strong>Lead source</strong><div class="meta" style="margin-top:4px">${sourcePill}</div></div>${replyButton}</div></div>`;
-                $('modalBody').querySelector('.field')?.insertAdjacentHTML('afterend', sourceCard);
+                if (!inquiry) return;
+                const inquiryCard = `<div class="card" id="originalInquiry" style="margin:14px 0"><div class="itemhead"><div class="inquiry-heading"><strong>First inquiry</strong>${unread}</div><div class="actions">${replyButton}</div></div><p class="inquiry-copy" style="margin-bottom:0">${esc(inquiry)}</p></div>`;
+                $('modalBody').querySelector('.field')?.insertAdjacentHTML('afterend', inquiryCard);
             }
             function insertConversationPanel(lead) {
                 const source = lead.source || 'Manual entry';
