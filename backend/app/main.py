@@ -521,15 +521,6 @@ def integration_health(user: User = Depends(get_current_user), db: Session = Dep
     }
 
 
-@app.post("/api/developer/integrations/ideal/test")
-def test_ideal_connection(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
-    if user.role != Role.DEVELOPER:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Developer access required")
-    workspace_id = require_workspace(user)
-    result = test_ideal_inventory_connection()
-    audit(db, user, "ideal_connection_tested", "Read-only inventory lookup completed", workspace_id)
-    db.commit()
-    return result
     defaults = [
         ("website", "Website forms", "Ready for a signed webhook"),
         ("messaging", "Text, email & social messaging", "Ready for a provider connection"),
@@ -551,6 +542,17 @@ def test_ideal_connection(user: User = Depends(get_current_user), db: Session = 
             "Customer records retain the source and external reference needed for duplicate review and traceability.",
         ],
     }
+
+
+@app.post("/api/developer/integrations/ideal/test")
+def test_ideal_connection(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if user.role != Role.DEVELOPER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Developer access required")
+    workspace_id = require_workspace(user)
+    result = test_ideal_inventory_connection()
+    audit(db, user, "ideal_connection_tested", "Read-only inventory lookup completed", workspace_id)
+    db.commit()
+    return result
 
 
 @app.get("/api/leads/{lead_id}/activities", response_model=list[ActivityResponse])
