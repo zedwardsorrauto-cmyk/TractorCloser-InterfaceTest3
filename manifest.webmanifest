@@ -1,0 +1,17 @@
+{
+  "name": "TractorCloser",
+  "short_name": "TractorCloser",
+  "start_url": "./tractorcloser-interface.html#today",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f2",
+  "theme_color": "#101827",
+  "icons": [
+    {
+      "src": "tractorcloser-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -21,3 +21,9 @@ disconnected by design.
 See [launch readiness](docs/launch-readiness.md) and
 [integration contracts](docs/integration-contracts.md) before production or any
 real provider connection.
+
+## Browser notifications
+
+The pilot includes installable-web-app files and opt-in browser notifications.
+See [browser push setup](docs/browser-push-setup.md) before adding the protected
+VAPID settings in Render.

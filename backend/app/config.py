@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     ideal_company_id: str = ""
     ideal_location_id: str = ""
     ideal_api_test_stock_number: str = ""
+    # Web Push values are generated once for TractorCloser and kept in Render.
+    # The public key is safe to return to the browser; the private key never is.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_claims_email: str = ""
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

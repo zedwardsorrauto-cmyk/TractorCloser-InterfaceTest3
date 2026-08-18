@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from pywebpush import WebPushException, webpush
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 from openai import OpenAI
@@ -21,7 +22,7 @@ from openai import OpenAI
 from .config import get_settings
 from .database import Base, SessionLocal, engine, get_db
 from .migrations import current_schema_version, run_schema_migrations
-from .models import AuditEvent, Deal, Lead, LeadActivity, Role, SystemSetting, User, Workspace, WorkspaceRecord
+from .models import AuditEvent, Deal, Lead, LeadActivity, PushSubscription, Role, SystemSetting, User, Workspace, WorkspaceRecord
 from .schemas import ActivityCreate, ActivityResponse, ClosingCoachRequest, ClosingCoachResponse, DealCreate, DealResponse, LeadAssignmentUpdate, LeadCreate, LeadPipelineUpdate, LeadProfileUpdate, LeadResponse, LoginRequest, LoginResponse, ManagerBriefResponse, PasswordSetupRequest, SalesManagerRequest, SalesManagerResponse, UserResponse, WorkspaceResponse, WorkspaceUserCreate, WorkspaceUserUpdate
 from .security import create_access_token, get_current_user, hash_password, verify_password
 
@@ -53,6 +54,67 @@ def user_response(user: User) -> UserResponse:
 
 def audit(db: Session, actor: User | None, event_type: str, detail: str = "", workspace_id: int | None = None) -> None:
     db.add(AuditEvent(actor_user_id=actor.id if actor else None, workspace_id=workspace_id or (actor.workspace_id if actor else None), event_type=event_type, detail=detail))
+
+
+def browser_push_ready() -> bool:
+    return bool(settings.vapid_public_key and settings.vapid_private_key and settings.vapid_claims_email)
+
+
+def queue_notification(db: Session, recipient: User | None, workspace_id: int | None, title: str, body: str, destination: str = "#today", kind: str = "update") -> WorkspaceRecord | None:
+    """Store an in-app notification first; delivery to a device is best effort."""
+    if not recipient or not recipient.active:
+        return None
+    target_workspace_id = workspace_id or recipient.workspace_id or db.scalar(select(Workspace.id).order_by(Workspace.id))
+    if not target_workspace_id:
+        return None
+    record = WorkspaceRecord(
+        workspace_id=target_workspace_id,
+        record_type="notification",
+        payload={
+            "user_id": recipient.id,
+            "title": title[:120],
+            "body": body[:300],
+            "destination": destination,
+            "kind": kind,
+            "read_at": "",
+        },
+    )
+    db.add(record)
+    return record
+
+
+def deliver_browser_push(db: Session, recipient_id: int, notification: WorkspaceRecord | None) -> None:
+    """Deliver a visible browser notification without letting a provider error break CRM work."""
+    if not notification or not browser_push_ready():
+        return
+    subscriptions = list(db.scalars(select(PushSubscription).where(PushSubscription.user_id == recipient_id, PushSubscription.active.is_(True))))
+    for subscription in subscriptions:
+        try:
+            webpush(
+                subscription_info=subscription.subscription,
+                data=json.dumps({
+                    "title": notification.payload.get("title", "TractorCloser"),
+                    "body": notification.payload.get("body", "You have a new update."),
+                    "destination": notification.payload.get("destination", "#today"),
+                }),
+                vapid_private_key=settings.vapid_private_key,
+                vapid_claims={"sub": f"mailto:{settings.vapid_claims_email}"},
+            )
+        except WebPushException as error:
+            response = getattr(error, "response", None)
+            if getattr(response, "status_code", None) in {404, 410}:
+                subscription.active = False
+        except Exception:
+            # Device delivery is intentionally best-effort; the in-app alert
+            # remains available even if an individual push service is offline.
+            continue
+
+
+def deliver_notifications(db: Session, deliveries: list[tuple[User | None, WorkspaceRecord | None]]) -> None:
+    for recipient, notification in deliveries:
+        if recipient and notification:
+            deliver_browser_push(db, recipient.id, notification)
+    db.commit()
 
 
 def run_openai_coaching(instructions: str, context: dict, settings) -> str:
@@ -217,8 +279,13 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> LoginResponse
     security = db.get(SystemSetting, "security")
     if security and not security.payload.get("sign_in_enabled", True) and user.role != Role.DEVELOPER:
         raise HTTPException(status_code=status.HTTP_423_LOCKED, detail="Sign-in is temporarily disabled by Developer security controls")
+    deliveries = []
+    if user.role == Role.DEVELOPER:
+        for developer in db.scalars(select(User).where(User.role == Role.DEVELOPER, User.active.is_(True))):
+            deliveries.append((developer, queue_notification(db, developer, user.workspace_id, "Developer session started", "A developer account signed in to TractorCloser.", "#developer-audit", "security")))
     audit(db, user, "developer_login" if user.role == Role.DEVELOPER else "login")
     db.commit()
+    deliver_notifications(db, deliveries)
     return LoginResponse(access_token=create_access_token(user), user=user_response(user))
 
 
@@ -437,6 +504,7 @@ def create_lead(payload: LeadCreate, user: User = Depends(get_current_user), db:
     payload.budget = max(0, int(payload.budget or 0))
     if user.role == Role.SALESPERSON:
         payload.assigned_user_id = user.id
+    assignee = None
     if payload.assigned_user_id is not None:
         assignee = db.scalar(select(User).where(User.id == payload.assigned_user_id, User.workspace_id == workspace_id, User.active.is_(True)))
         if not assignee:
@@ -446,7 +514,11 @@ def create_lead(payload: LeadCreate, user: User = Depends(get_current_user), db:
     db.flush()
     db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, actor_user_id=user.id, type="lead created", body="Customer profile created."))
     audit(db, user, "lead_created", lead.name, workspace_id)
+    delivery = None
+    if assignee and assignee.id != user.id:
+        delivery = queue_notification(db, assignee, workspace_id, "New lead assigned", f"{lead.name} was assigned to you.", "#pipeline", "lead")
     db.commit()
+    deliver_notifications(db, [(assignee, delivery)])
     db.refresh(lead)
     return lead
 
@@ -478,6 +550,7 @@ def assign_lead(lead_id: int, payload: LeadAssignmentUpdate, user: User = Depend
     if user.role not in {Role.ADMIN, Role.DEVELOPER}:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     lead = get_workspace_lead(lead_id, user, db)
+    assignee = None
     if payload.assigned_user_id is not None:
         assignee = db.scalar(select(User).where(User.id == payload.assigned_user_id, User.workspace_id == lead.workspace_id, User.active.is_(True)))
         if not assignee:
@@ -486,7 +559,9 @@ def assign_lead(lead_id: int, payload: LeadAssignmentUpdate, user: User = Depend
     detail = f"{lead.name} assigned" if payload.assigned_user_id else f"{lead.name} unassigned"
     db.add(LeadActivity(workspace_id=lead.workspace_id, lead_id=lead.id, actor_user_id=user.id, type="lead assigned", body=detail))
     audit(db, user, "lead_assignment_changed", detail, lead.workspace_id)
+    delivery = queue_notification(db, assignee, lead.workspace_id, "Lead assigned", f"{lead.name} is now in your pipeline.", "#pipeline", "lead")
     db.commit()
+    deliver_notifications(db, [(assignee, delivery)])
     db.refresh(lead)
     return lead
 
@@ -519,8 +594,6 @@ def integration_health(user: User = Depends(get_current_user), db: Session = Dep
         record.payload.get("key"): record.payload
         for record in db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "integration_status"))
     }
-
-
     defaults = [
         ("website", "Website forms", "Ready for a signed webhook"),
         ("messaging", "Text, email & social messaging", "Ready for a provider connection"),
@@ -542,6 +615,58 @@ def integration_health(user: User = Depends(get_current_user), db: Session = Dep
             "Customer records retain the source and external reference needed for duplicate review and traceability.",
         ],
     }
+
+
+@app.get("/api/notifications")
+def get_notifications(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[dict]:
+    records = db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.record_type == "notification").order_by(WorkspaceRecord.created_at.desc()).limit(50))
+    return [{"id": record.id, "created_at": record.created_at.isoformat() if record.created_at else "", **record.payload} for record in records if int(record.payload.get("user_id", -1)) == user.id]
+
+
+@app.patch("/api/notifications/{record_id}/read")
+def mark_notification_read(record_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    record = db.scalar(select(WorkspaceRecord).where(WorkspaceRecord.id == record_id, WorkspaceRecord.record_type == "notification"))
+    if not record or int(record.payload.get("user_id", -1)) != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Notification not found")
+    record.payload = {**record.payload, "read_at": datetime.now(timezone.utc).isoformat()}
+    db.commit()
+    return {"id": record.id, "read_at": record.payload["read_at"]}
+
+
+@app.get("/api/push/config")
+def get_push_config(user: User = Depends(get_current_user)) -> dict:
+    return {"ready": browser_push_ready(), "public_key": settings.vapid_public_key if browser_push_ready() else ""}
+
+
+@app.get("/api/push/subscription")
+def get_push_subscription(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    active = db.scalar(select(PushSubscription).where(PushSubscription.user_id == user.id, PushSubscription.active.is_(True)))
+    return {"enabled": bool(active), "delivery_ready": browser_push_ready()}
+
+
+@app.post("/api/push/subscription")
+def save_push_subscription(payload: dict, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    endpoint = str(payload.get("endpoint", "")).strip()
+    keys = payload.get("keys") or {}
+    if not endpoint.startswith("https://") or not keys.get("p256dh") or not keys.get("auth"):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="A valid browser notification subscription is required")
+    existing = db.scalar(select(PushSubscription).where(PushSubscription.endpoint == endpoint))
+    if existing:
+        existing.user_id, existing.subscription, existing.active = user.id, payload, True
+    else:
+        db.add(PushSubscription(user_id=user.id, endpoint=endpoint, subscription=payload, active=True))
+    audit(db, user, "browser_push_enabled", "Browser notifications enabled")
+    db.commit()
+    return {"enabled": True}
+
+
+@app.delete("/api/push/subscription")
+def remove_push_subscription(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    for subscription in db.scalars(select(PushSubscription).where(PushSubscription.user_id == user.id, PushSubscription.active.is_(True))):
+        subscription.active = False
+    audit(db, user, "browser_push_disabled", "Browser notifications disabled")
+    db.commit()
+    return {"enabled": False}
 
 
 @app.post("/api/developer/integrations/ideal/test")
@@ -609,7 +734,12 @@ def record_deal(payload: DealCreate, user: User = Depends(get_current_user), db:
     if lead:
         db.add(LeadActivity(workspace_id=workspace_id, lead_id=lead.id, actor_user_id=user.id, type="deal recorded", body=f"Sold for ${payload.sale_price:,} with ${payload.gross_profit:,} total gross."))
     audit(db, user, "deal_recorded", payload.customer, workspace_id)
+    deliveries = []
+    for manager in db.scalars(select(User).where(User.workspace_id == workspace_id, User.role == Role.ADMIN, User.active.is_(True))):
+        if manager.id != user.id:
+            deliveries.append((manager, queue_notification(db, manager, workspace_id, "Win recorded", f"A deal was recorded for {payload.customer}.", "#deals", "deal")))
     db.commit()
+    deliver_notifications(db, deliveries)
     db.refresh(deal)
     return deal
 
@@ -1056,7 +1186,12 @@ def set_security_lock(sign_in_enabled: bool, reason: str, user: User, db: Sessio
         account.session_version = int(account.session_version or 1) + 1
     db.flush()
     audit(db, user, "security_lockdown_restored" if sign_in_enabled else "security_lockdown_enabled", reason.strip(), getattr(user, "support_workspace_id", None))
+    workspace_id = getattr(user, "support_workspace_id", None) or user.workspace_id
+    title = "Security access restored" if sign_in_enabled else "Security lockdown enabled"
+    body = "Developer security controls changed. Review the Developer Security page."
+    deliveries = [(developer, queue_notification(db, developer, workspace_id, title, body, "#developer-security", "security")) for developer in db.scalars(select(User).where(User.role == Role.DEVELOPER, User.active.is_(True)))]
     db.commit()
+    deliver_notifications(db, deliveries)
     db.refresh(user)
     return {**payload, "access_token": create_access_token(user, getattr(user, "support_workspace_id", None))}
 

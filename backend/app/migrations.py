@@ -38,8 +38,16 @@ def _pilot_schema_upgrade(engine: Engine) -> None:
     _add_missing_columns(engine, "deals", {"sold_by_user_id": "INTEGER"})
 
 
+def _push_subscription_upgrade(engine: Engine) -> None:
+    # The model metadata creates the table for new deployments.  Keeping this
+    # migration gives existing pilot databases an explicit, one-time upgrade.
+    from .database import Base
+    Base.metadata.tables["push_subscriptions"].create(bind=engine, checkfirst=True)
+
+
 MIGRATIONS: list[tuple[int, str, Callable[[Engine], None]]] = [
     (1, "pilot_schema_baseline", _pilot_schema_upgrade),
+    (2, "browser_push_subscriptions", _push_subscription_upgrade),
 ]
 
 

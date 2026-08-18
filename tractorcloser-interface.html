@@ -4,6 +4,8 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
         <meta name="theme-color" content="#101827">
+        <link rel="manifest" href="manifest.webmanifest">
+        <link rel="apple-touch-icon" href="tractorcloser-icon.svg">
         <title>TractorCloser</title>
         <style>
             :root {
@@ -1831,6 +1833,7 @@
                 appointments: [],
                 quotes: [],
                 deals: [],
+                notifications: [],
                 intake: [],
                 metrics: null,
                 team: null,
@@ -2177,8 +2180,15 @@
             function openQuickAction() {
                 openModal('Quick action', `<div class="list"><button class="item" onclick="closeModal();openLead()"><h3>+ Add customer</h3><div class="meta">Start a new customer profile.</div></button><button class="item" onclick="closeModal();openDeal()"><h3>Record deal</h3><div class="meta">Log a completed sale, including a walk-in customer.</div></button><button class="item" onclick="closeModal();openAppointment()"><h3>Schedule appointment</h3><div class="meta">Create the next customer commitment.</div></button><button class="item" onclick="closeModal();chooseQuoteCustomer()"><h3>Create quote</h3><div class="meta">Build a cash or finance proposal.</div></button></div>`)
             }
-            function openAccount() {
-                openModal('Account', `<div class="item"><h3>${esc(state.currentUser?.email || 'TractorCloser account')}</h3><div class="meta">Your role and workspace access are controlled by your dealership administrator. Personal notification preferences will appear here when messaging providers are connected.</div></div>`)
+            async function openAccount() {
+                let push = {enabled: false, delivery_ready: false};
+                try { if (token) push = await api('/api/push/subscription') } catch (_) {}
+                const supported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+                const status = !supported ? 'This browser does not support browser notifications.' : push.enabled ? 'Browser notifications are enabled on this device.' : push.delivery_ready ? 'Browser notifications are available on this device.' : 'Browser notifications are being configured for this workspace.';
+                const action = supported && push.delivery_ready
+                    ? (push.enabled ? `<button class="btn light" onclick="disableBrowserPush()">Turn off browser notifications</button>` : `<button class="btn brand" onclick="enableBrowserPush()">Enable browser notifications</button>`)
+                    : '';
+                openModal('Account', `<div class="list"><div class="item"><h3>${esc(state.currentUser?.email || 'TractorCloser account')}</h3><div class="meta">Your role and workspace access are controlled by your dealership administrator.</div></div><div class="item"><h3>Mobile notifications</h3><div class="meta">${esc(status)} Install TractorCloser to your Home Screen on iPhone or iPad before enabling notifications.</div><div class="actions" style="margin-top:12px">${action}</div></div></div>`)
             }
             function openMobileDrawer() {
                 if (window.matchMedia('(max-width: 850px)').matches) {
@@ -2194,11 +2204,18 @@
                 openModal('Help', `<div class="list"><div class="item"><h3>Need a hand?</h3><div class="meta">Use search to find customers or equipment, use Pipeline to move leads through stages, and open AI for sales coaching.</div></div><div class="item"><h3>Notifications</h3><div class="meta">Follow-up reminders are active inside TractorCloser. Phone, email, and browser push delivery will be enabled with the selected communication provider.</div></div></div>`)
             }
             function openNotifications() {
-                openModal('Notifications', `<div class="list notification-list"><button class="item" onclick="closeModal();openNotificationTarget(1)"><div class="itemhead"><div><h3>Follow-up overdue</h3><div class="meta">Jordan Miller’s trade-in details were due yesterday.</div></div><span class="pill">Action needed</span></div></button><button class="item" onclick="closeModal();openNotificationTarget(2)"><div class="itemhead"><div><h3>Demo tomorrow</h3><div class="meta">Casey Rodriguez has a scheduled tractor demo tomorrow.</div></div><span class="pill">Upcoming</span></div></button><button class="item" onclick="closeModal();openNotificationTarget(3)"><div class="itemhead"><div><h3>Quote viewed</h3><div class="meta">Morgan Lee opened the compact tractor quote.</div></div><span class="pill">Sales signal</span></div></button></div>`)
+                const items = state.notifications || [];
+                const body = items.length ? items.map(item => `<button class="item" onclick="openNotificationTarget(${item.id})"><div class="itemhead"><div><h3>${esc(item.title)}</h3><div class="meta">${esc(item.body)} · ${esc(formatTimestamp(item.created_at))}</div></div>${item.read_at ? '' : '<span class="pill">New</span>'}</div></button>`).join('') : '<div class="item"><h3>You’re all caught up</h3><div class="meta">New lead, follow-up, sale, and security alerts will appear here.</div></div>';
+                openModal('Notifications', `<div class="list notification-list">${body}</div>`)
             }
-            function openNotificationTarget(leadId) {
-                go('pipeline');
-                openLeadDetail(leadId)
+            async function openNotificationTarget(notificationId) {
+                const notification = state.notifications.find(item => Number(item.id) === Number(notificationId));
+                if (!notification) return;
+                try { await api('/api/notifications/' + notification.id + '/read', {method: 'PATCH', body: JSON.stringify({})}) } catch (_) {}
+                notification.read_at = new Date().toISOString();
+                renderNotificationBadge();
+                closeModal(true);
+                go(String(notification.destination || '#today').replace(/^#/, '') || 'today')
             }
             function toggleRailNotifications() {
                 const list = $('railNotifications');
@@ -2260,6 +2277,48 @@
                 if (!r.ok)
                     throw Error(d.detail || d.error || 'Request failed');
                 return d
+            }
+            function renderNotificationBadge() {
+                const unread = (state.notifications || []).filter(item => !item.read_at).length;
+                document.querySelectorAll('.notification-badge').forEach(badge => {
+                    badge.textContent = unread;
+                    badge.hidden = unread === 0;
+                })
+            }
+            function urlBase64ToUint8Array(value) {
+                const padding = '='.repeat((4 - value.length % 4) % 4);
+                const base64 = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
+                const raw = atob(base64);
+                return Uint8Array.from(raw, char => char.charCodeAt(0))
+            }
+            async function registerPushServiceWorker() {
+                if (!('serviceWorker' in navigator)) return null;
+                try { return await navigator.serviceWorker.register('push-service-worker.js') } catch (_) { return null }
+            }
+            async function enableBrowserPush() {
+                try {
+                    if (!('Notification' in window) || !('PushManager' in window)) throw Error('Browser notifications are not supported on this device.');
+                    const config = await api('/api/push/config');
+                    if (!config.ready || !config.public_key) throw Error('Browser notifications are not configured for TractorCloser yet.');
+                    const permission = await Notification.requestPermission();
+                    if (permission !== 'granted') throw Error('Notification permission was not granted.');
+                    const registration = await registerPushServiceWorker();
+                    if (!registration) throw Error('TractorCloser could not prepare notifications in this browser.');
+                    const subscription = await registration.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(config.public_key)});
+                    await api('/api/push/subscription', {method: 'POST', body: JSON.stringify(subscription.toJSON())});
+                    toast('Browser notifications enabled');
+                    openAccount()
+                } catch (error) { toast(error.message || 'Unable to enable browser notifications') }
+            }
+            async function disableBrowserPush() {
+                try {
+                    const registration = await navigator.serviceWorker.getRegistration();
+                    const subscription = registration ? await registration.pushManager.getSubscription() : null;
+                    if (subscription) await subscription.unsubscribe();
+                    await api('/api/push/subscription', {method: 'DELETE'});
+                    toast('Browser notifications disabled');
+                    openAccount()
+                } catch (error) { toast(error.message || 'Unable to update notifications') }
             }
             function go(page) {
                 if (page === 'team' && !['admin', 'developer'].includes(state.currentUser?.role)) {
@@ -2429,7 +2488,7 @@
                         openDeveloperWorkspaceChooser(workspaces);
                         return
                     }
-                    const [leads, deals, followups, appointments, inventory, quotes, metrics, settings] = await Promise.all([api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics'), api('/api/settings')]);
+                    const [leads, deals, followups, appointments, inventory, quotes, metrics, settings, notifications] = await Promise.all([api('/api/leads'), api('/api/deals'), api('/api/followups'), api('/api/appointments'), api('/api/inventory'), api('/api/quotes'), api('/api/metrics'), api('/api/settings'), api('/api/notifications')]);
                     const intake = me.role === 'admin' ? await api('/api/intake') : [];
                     const team = ['admin', 'developer'].includes(me.role) ? await api('/api/team') : null;
                     loadDemo();
@@ -2439,6 +2498,7 @@
                     state.appointments = appointments;
                     state.inventory = inventory;
                     state.quotes = quotes;
+                    state.notifications = notifications;
                     state.metrics = metrics;
                     state.intake = intake;
                     state.team = team;
@@ -2451,7 +2511,9 @@
                     demoMode = false;
                     await ensureActiveFollowups();
                     renderWin(); renderPipeline(); renderCRM(); renderDeals(); renderInventory(); renderTeam(); renderIntake();
+                    renderNotificationBadge();
                     applyAuthenticatedUser(me);
+                    registerPushServiceWorker();
                     startLiveSync()
                 } catch (e) {
                     if (/session|authentication|expired/i.test(e.message)) {
