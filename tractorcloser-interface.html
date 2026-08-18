@@ -1686,6 +1686,7 @@
             <section id="page-integrations" class="page">
                 <div class="hero"><div><h1>Integration Health</h1><p>Connection readiness, intake safeguards, and the final checks before live dealer data.</p></div><button class="btn light" onclick="loadIntegrationHealth()">↻ Refresh</button></div>
                 <div id="integrationHealth" class="grid grid3 section"><div class="empty">Loading integration readiness…</div></div>
+                <div id="idealConnectionTest" class="section" hidden></div>
                 <div class="grid grid2 section">
                     <div class="card"><h2 style="margin-top:0">Safe intake rules</h2><div id="integrationRules" class="list"></div></div>
                     <div class="card"><h2 style="margin-top:0">Before going live</h2><div class="list"><div class="item"><strong>Role and access test</strong><div class="meta">Confirm salespeople can only see their assigned customers.</div></div><div class="item"><strong>Backup and restore test</strong><div class="meta">Download a workspace backup and verify it opens before importing real data.</div></div><div class="item"><strong>Consent and opt-out review</strong><div class="meta">Confirm the dealership’s messaging policy before enabling any sending provider.</div></div><div class="item"><strong>Set the allowed website origin</strong><div class="meta">Move the API out of testing mode by restricting browser access to the live TractorCloser site.</div></div></div></div>
@@ -2607,9 +2608,24 @@
                     const statusClass = value => value === 'Connected' ? 'brand' : 'light';
                     $('integrationHealth').innerHTML = health.providers.map(provider => `<div class="card"><div class="itemhead"><div><h2 style="margin:0">${esc(provider.name)}</h2><p class="muted" style="margin:8px 0 0">${esc(provider.detail)}</p></div><span class="pill">${esc(provider.status)}</span></div><div class="meta" style="margin-top:14px">${provider.last_sync ? 'Last sync: ' + esc(formatTimestamp(provider.last_sync)) : 'No live data has been connected.'}</div></div>`).join('') + `<div class="card"><div class="itemhead"><div><h2 style="margin:0">API security</h2><p class="muted" style="margin:8px 0 0">${health.testing_mode ? 'Testing mode is active. Restrict the allowed website origin before launch.' : 'The API is restricted to its configured website origin.'}</p></div><span class="pill">${health.testing_mode ? 'Testing mode' : 'Restricted'}</span></div><div class="meta" style="margin-top:14px">Environment: ${esc(health.environment || 'testing')} · Schema version ${Number(health.schema_version || 0)}</div></div>`;
                     $('integrationRules').innerHTML = health.rules.map(rule => `<div class="item"><div class="meta">${esc(rule)}</div></div>`).join('');
+                    const idealTest = $('idealConnectionTest');
+                    idealTest.hidden = state.currentUser?.role !== 'developer';
+                    if (state.currentUser?.role === 'developer') idealTest.innerHTML = `<div class="card"><div class="itemhead"><div><h2 style="margin:0">Ideal read-only connection test</h2><p class="muted" style="margin:8px 0 0">Tests one inventory lookup only. It cannot create, edit, or post anything in Ideal.</p></div><button class="btn brand" onclick="testIdealConnection()">Test connection</button></div><div id="idealConnectionResult" class="meta" style="margin-top:14px">Configure Ideal in Render before running the test.</div></div>`;
                 } catch (e) {
                     $('integrationHealth').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
                     $('integrationRules').innerHTML = '';
+                }
+            }
+            async function testIdealConnection() {
+                const result = $('idealConnectionResult');
+                if (result) result.textContent = 'Testing a single read-only inventory lookup…';
+                try {
+                    const response = await api('/api/developer/integrations/ideal/test', {method:'POST'});
+                    if (result) result.textContent = `${response.detail} ${response.result_count} matching record returned in ${response.latency_ms} ms.`;
+                    toast('Ideal connection verified');
+                } catch (e) {
+                    if (result) result.textContent = e.message;
+                    toast(e.message);
                 }
             }
             function openSecurityAction(action) {

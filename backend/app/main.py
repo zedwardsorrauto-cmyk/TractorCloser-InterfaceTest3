@@ -1,9 +1,14 @@
 import csv
 import json
 import os
+import time
 import zipfile
+from base64 import b64encode
 from datetime import datetime, timedelta, timezone
 from io import BytesIO, StringIO
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -230,6 +235,46 @@ def require_workspace(user: User) -> int:
     if workspace_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Select a dealership workspace before accessing CRM data")
     return workspace_id
+
+
+def ideal_connection_ready() -> tuple[bool, str]:
+    required = {
+        "IDEAL_API_BASE_URL": settings.ideal_api_base_url,
+        "IDEAL_API_USERNAME": settings.ideal_api_username,
+        "IDEAL_API_PASSWORD": settings.ideal_api_password,
+        "IDEAL_COMPANY_ID": settings.ideal_company_id,
+        "IDEAL_LOCATION_ID": settings.ideal_location_id,
+    }
+    missing = [name for name, value in required.items() if not value.strip()]
+    if missing:
+        return False, "Ideal is not configured yet. Add the required Ideal settings in Render before testing."
+    if not settings.ideal_api_base_url.lower().startswith("https://"):
+        return False, "Ideal must provide an HTTPS endpoint before TractorCloser sends Basic Authentication over the internet."
+    return True, "Ready"
+
+
+def test_ideal_inventory_connection() -> dict:
+    ready, message = ideal_connection_ready()
+    if not ready:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=message)
+    endpoint = f"{settings.ideal_api_base_url.rstrip('/')}/Api/Inventory/{settings.ideal_company_id}/Unit"
+    if settings.ideal_api_test_stock_number.strip():
+        endpoint += f"/{settings.ideal_api_test_stock_number.strip()}"
+    query = urlencode({"LocationID": settings.ideal_location_id.strip(), "PerPage": 1, "Page": 1, "UnitStatus": "I"})
+    credentials = b64encode(f"{settings.ideal_api_username}:{settings.ideal_api_password}".encode()).decode()
+    request = Request(f"{endpoint}?{query}", headers={"Authorization": f"Basic {credentials}", "Accept": "application/json"}, method="GET")
+    started = time.monotonic()
+    try:
+        with urlopen(request, timeout=12) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Ideal rejected the read-only test with HTTP {error.code}.")
+    except URLError:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="TractorCloser could not reach Ideal. Confirm Ideal's HTTPS endpoint and network access.")
+    except (TimeoutError, ValueError, json.JSONDecodeError):
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="Ideal returned an unreadable response. No data was changed.")
+    units = payload.get("Units", []) if isinstance(payload, dict) else []
+    return {"status": "Connected", "detail": "Read-only inventory lookup completed. No Ideal records were changed.", "latency_ms": round((time.monotonic() - started) * 1000), "result_count": len(units)}
 
 
 @app.post("/api/auth/set-password", response_model=LoginResponse)
@@ -474,6 +519,17 @@ def integration_health(user: User = Depends(get_current_user), db: Session = Dep
         record.payload.get("key"): record.payload
         for record in db.scalars(select(WorkspaceRecord).where(WorkspaceRecord.workspace_id == workspace_id, WorkspaceRecord.record_type == "integration_status"))
     }
+
+
+@app.post("/api/developer/integrations/ideal/test")
+def test_ideal_connection(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> dict:
+    if user.role != Role.DEVELOPER:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Developer access required")
+    workspace_id = require_workspace(user)
+    result = test_ideal_inventory_connection()
+    audit(db, user, "ideal_connection_tested", "Read-only inventory lookup completed", workspace_id)
+    db.commit()
+    return result
     defaults = [
         ("website", "Website forms", "Ready for a signed webhook"),
         ("messaging", "Text, email & social messaging", "Ready for a provider connection"),

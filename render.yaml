@@ -24,6 +24,18 @@ services:
         sync: false
       - key: INTEGRATION_INTAKE_ENABLED
         value: false
+      - key: IDEAL_API_BASE_URL
+        sync: false
+      - key: IDEAL_API_USERNAME
+        sync: false
+      - key: IDEAL_API_PASSWORD
+        sync: false
+      - key: IDEAL_COMPANY_ID
+        sync: false
+      - key: IDEAL_LOCATION_ID
+        sync: false
+      - key: IDEAL_API_TEST_STOCK_NUMBER
+        sync: false
 
 databases:
   - name: tractorcloser-db

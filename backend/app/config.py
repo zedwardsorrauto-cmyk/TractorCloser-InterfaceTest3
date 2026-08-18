@@ -15,6 +15,14 @@ class Settings(BaseSettings):
     allowed_origins: str = ""
     integration_intake_enabled: bool = False
     app_environment: str = "testing"
+    # Ideal credentials are deliberately supplied only through Render
+    # environment variables. Never commit them to the repository.
+    ideal_api_base_url: str = ""
+    ideal_api_username: str = ""
+    ideal_api_password: str = ""
+    ideal_company_id: str = ""
+    ideal_location_id: str = ""
+    ideal_api_test_stock_number: str = ""
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
